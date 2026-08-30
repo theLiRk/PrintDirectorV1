@@ -36,12 +36,71 @@
     a { color: #7dd3fc; text-decoration: none; }
     .settings-layout {
       display: grid;
-      grid-template-columns: minmax(300px, 430px) minmax(300px, 1fr);
+      grid-template-columns: minmax(190px, 230px) minmax(420px, 620px) minmax(300px, 1fr);
       gap: 24px;
-      max-width: 1200px;
+      max-width: 1440px;
       margin: 0 auto;
       align-items: start;
     }
+    .settings-nav {
+      position: sticky;
+      top: 24px;
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+    }
+    .settings-nav-title {
+      padding: 4px 10px 10px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .settings-nav button {
+      width: 100%;
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+    }
+    .settings-nav button:hover,
+    .settings-nav button.active {
+      border-color: rgba(125, 211, 252, 0.45);
+      background: rgba(14, 116, 144, 0.25);
+      color: white;
+      box-shadow: none;
+    }
+    .printer-pages {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .printer-page-button {
+      display: grid;
+      gap: 2px;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .printer-page-button small {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 400;
+    }
+    .printer-page-button.active {
+      border-color: rgba(125, 211, 252, 0.8);
+      background: rgba(14, 116, 144, 0.35);
+    }
+    .selected-printer {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin: 8px 0 14px;
+    }
+    .selected-printer h3 { margin: 0; }
+    .selected-printer span { color: var(--muted); font-size: 0.82rem; }
     .panel {
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
@@ -51,6 +110,10 @@
       backdrop-filter: blur(8px);
     }
     form { display: grid; gap: 18px; }
+    .settings-section { display: grid; gap: 18px; }
+    .section-heading { display: grid; gap: 4px; }
+    .section-heading h2 { margin: 0; font-size: 1.25rem; }
+    .section-heading p { margin: 0; color: var(--muted); font-size: 0.9rem; }
     fieldset {
       border: 1px solid rgba(148, 163, 184, 0.22);
       border-radius: 12px;
@@ -108,6 +171,20 @@
       min-height: 24px; color: var(--success); font-size: 0.94rem;
     }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .sticky-actions {
+      position: sticky;
+      bottom: 16px;
+      z-index: 2;
+      padding: 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      background: rgba(2, 8, 23, 0.92);
+      backdrop-filter: blur(8px);
+    }
+    .actions button[type="submit"] {
+      background: linear-gradient(180deg, #0284c7, #0369a1);
+      border-color: #38bdf8;
+    }
     button {
       appearance: none; border: 1px solid #475569; border-radius: 10px; cursor: pointer;
       background: linear-gradient(180deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1));
@@ -146,6 +223,9 @@
     .preview-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; color: var(--muted); font-size: 0.8rem; }
     @media (max-width: 800px) {
       .settings-layout { grid-template-columns: 1fr; }
+      .settings-nav { position: static; display: flex; overflow-x: auto; }
+      .settings-nav-title { display: none; }
+      .settings-nav button { width: auto; white-space: nowrap; }
       body { padding: 20px 16px 32px; }
       header { flex-direction: column; align-items: flex-start; }
     }
@@ -158,9 +238,16 @@
   </header>
 
   <div class="settings-layout">
+    <nav class="panel settings-nav" aria-label="Settings sections">
+      <div class="settings-nav-title">Settings</div>
+      <button type="button" class="settings-tab active" data-section="general">General</button>
+      <button type="button" class="settings-tab" data-section="connections">Connections</button>
+      <button type="button" class="settings-tab" data-section="printers">Printers</button>
+      <button type="button" class="settings-tab" data-section="profiles">Profiles</button>
+    </nav>
     <div class="panel">
       <form id="settings-form">
-        <fieldset>
+        <fieldset data-settings-section="general">
           <legend>Access</legend>
           <label>API token (optional)
             <div class="token-row">
@@ -170,7 +257,7 @@
           </label>
         </fieldset>
 
-        <fieldset>
+        <fieldset data-settings-section="general">
           <legend>Appearance</legend>
           <div class="preset-row" aria-label="Theme presets">
             <button type="button" class="preset-btn" data-preset="dark">Dark</button>
@@ -208,7 +295,7 @@
           </label>
         </fieldset>
 
-        <fieldset>
+        <fieldset data-settings-section="general">
           <legend>Overlay fields</legend>
           <label class="checkbox-row"><input type="checkbox" name="show_filename"> Show filename</label>
           <label class="checkbox-row"><input type="checkbox" name="show_state"> Show state</label>
@@ -217,7 +304,7 @@
           <label class="checkbox-row"><input type="checkbox" name="show_layers"> Show layers</label>
         </fieldset>
 
-        <fieldset>
+        <fieldset data-settings-section="connections">
           <legend>OBS connection</legend>
           <label>OBS host
             <input type="text" id="obs-host" placeholder="127.0.0.1" />
@@ -233,7 +320,7 @@
           </label>
         </fieldset>
 
-        <fieldset>
+        <fieldset data-settings-section="connections">
           <legend>Local network</legend>
           <label>Overlay host
             <input type="text" id="overlay-host" placeholder="127.0.0.1" />
@@ -244,14 +331,17 @@
           <label class="checkbox-row"><input type="checkbox" id="allow-lan"> Allow LAN access</label>
         </fieldset>
 
-        <fieldset>
-          <legend>Printer cards</legend>
-          <label>Printer
-            <select id="printer-override-select"><option value="">Select a printer</option></select>
-          </label>
+        <fieldset data-settings-section="printers">
+          <legend>Printer workspace</legend>
+          <div id="printer-pages" class="printer-pages" aria-label="Printers"></div>
+          <select id="printer-override-select" hidden aria-hidden="true"><option value="">Select a printer</option></select>
+          <div class="selected-printer">
+            <h3 id="selected-printer-title">No printer selected</h3>
+            <span id="selected-printer-id"></span>
+          </div>
           <div class="profile-row">
             <button type="button" id="add-printer">Add printer</button>
-            <button type="button" id="remove-printer">Remove selected</button>
+            <button type="button" id="remove-printer">Remove this printer</button>
             <button type="button" id="test-printer">Test connection</button>
           </div>
           <label>Printer ID
@@ -299,9 +389,16 @@
           <div class="checkbox-row"><input type="checkbox" id="printer-show-temps"> Show temperatures</div>
           <div class="checkbox-row"><input type="checkbox" id="printer-show-layers"> Show layers</div>
           <button type="button" id="clear-printer-override">Clear override for selected printer</button>
+          <div class="profile-row">
+            <button type="button" id="save-printer-style">Save this printer's style</button>
+            <select id="apply-style-target" aria-label="Apply saved style to">
+              <option value="">Apply saved style to…</option>
+            </select>
+            <button type="button" id="apply-printer-style">Apply saved style</button>
+          </div>
         </fieldset>
 
-        <fieldset>
+        <fieldset data-settings-section="profiles">
           <legend>Profile</legend>
           <div class="profile-row">
             <input type="text" id="profile-name" placeholder="Profile name" aria-label="Profile name" />
@@ -318,7 +415,7 @@
           </div>
         </fieldset>
 
-        <div class="actions">
+        <div class="actions sticky-actions">
           <button type="submit">Save overlay settings</button>
           <button type="button" id="save-system-config">Save system config</button>
           <button type="button" id="reset-settings">Reset defaults</button>

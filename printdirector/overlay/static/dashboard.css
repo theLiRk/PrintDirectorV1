@@ -1,1 +1,64 @@
-body{padding:24px}header{display:flex;justify-content:space-between;align-items:center}nav{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}button{background:#1e293b;color:white;border:1px solid #475569;border-radius:8px;padding:10px 14px;cursor:pointer}button:hover{background:#0ea5e9}
+body.dashboard-page {
+    min-height: 100vh;
+    padding: 24px;
+    background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 34%),
+        linear-gradient(180deg, #0f172a 0%, #020617 100%) !important;
+    color: #e2e8f0;
+    font-family: system-ui, sans-serif;
+}
+
+body.dashboard-page.dashboard-light {
+    background:
+        radial-gradient(circle at top left, rgba(14, 165, 233, 0.12), transparent 34%),
+        linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%) !important;
+    color: #0f172a;
+}
+
+.dashboard-page header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.dashboard-page nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 16px 0;
+}
+
+.dashboard-page button,
+.dashboard-page nav a {
+    display: inline-block;
+    padding: 10px 14px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    background: #1e293b;
+    color: white;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.dashboard-page nav a[href="/preview"] {
+    border-color: #0f766e;
+    background: #0f766e;
+}
+
+.dashboard-page button:hover,
+.dashboard-page nav a:hover {
+    background: #0ea5e9;
+}
+
+@media (max-width: 640px) {
+    body.dashboard-page {
+        padding: 16px;
+    }
+
+    .dashboard-page header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

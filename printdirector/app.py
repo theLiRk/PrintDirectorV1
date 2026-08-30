@@ -13,4 +13,20 @@ class Runtime:
    if self.hub: await self.hub.broadcast({'printers':[s.model_dump(mode='json') for s in self.manager.statuses().values()],'director':self.director.public_status()})
    await asyncio.sleep(1)
  async def start(self): await self.manager.start(); self.tasks=[asyncio.create_task(self.director.run()),asyncio.create_task(self.broadcaster())]
- async def stop(self): await self.director.stop(); await self.manager.stop(); [t.cancel() for t in self.tasks]; await asyncio.gather(*self.tasks,return_exceptions=True); await self.obs.close()
+ async def stop(self):
+  cleanup = asyncio.gather(
+   self.director.stop(),
+   self.manager.stop(),
+   *(self._stop_task(task) for task in self.tasks),
+  )
+  try:
+   await asyncio.shield(cleanup)
+  except asyncio.CancelledError:
+   await cleanup
+  self.tasks.clear()
+  await self.obs.close()
+
+ async def _stop_task(self, task):
+  if not task.done():
+   task.cancel()
+  await asyncio.gather(task, return_exceptions=True)

@@ -13,6 +13,8 @@ async def serve(args):
  rt=Runtime(cfg,args.demo); app=create_app(rt); server=uvicorn.Server(uvicorn.Config(app,host=cfg.overlay.host,port=cfg.overlay.port,log_level=cfg.logging.level.lower()))
  await rt.start()
  try: await server.serve()
+ except asyncio.CancelledError:
+  pass
  finally: await rt.stop()
  return 0
 def main():

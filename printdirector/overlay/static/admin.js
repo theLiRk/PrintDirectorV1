@@ -35,6 +35,12 @@ const importProfileInput = document.getElementById('import-profile');
 const tokenInput = document.getElementById('api-token');
 const tokenSaveButton = document.getElementById('token-save');
 const printerSelect = document.getElementById('printer-override-select');
+const printerPages = document.getElementById('printer-pages');
+const selectedPrinterTitle = document.getElementById('selected-printer-title');
+const selectedPrinterId = document.getElementById('selected-printer-id');
+const savePrinterStyleButton = document.getElementById('save-printer-style');
+const applyStyleTarget = document.getElementById('apply-style-target');
+const applyPrinterStyleButton = document.getElementById('apply-printer-style');
 const printerIdInput = document.getElementById('printer-id');
 const printerNameInput = document.getElementById('printer-name');
 const printerSceneInput = document.getElementById('printer-scene');
@@ -67,6 +73,22 @@ const allowLanInput = document.getElementById('allow-lan');
 
 let currentSettings = { ...defaults };
 let currentRuntimeConfig = { printers: [], obs: {}, overlay: {}, auth: {} };
+
+function activateSettingsSection(section) {
+  document.querySelectorAll('.settings-tab').forEach((button) => {
+    const active = button.dataset.section === section;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  document.querySelectorAll('[data-settings-section]').forEach((panel) => {
+    panel.hidden = panel.dataset.settingsSection !== section;
+  });
+}
+
+document.querySelectorAll('.settings-tab').forEach((button) => {
+  button.addEventListener('click', () => activateSettingsSection(button.dataset.section));
+});
+activateSettingsSection('general');
 
 function getToken() {
   const fromStorage = localStorage.getItem('printdirector-token');
@@ -152,6 +174,45 @@ function populatePrinterSelect(printerIds = []) {
     printerSelect.appendChild(option);
   });
   if (!printerSelect.value && printerIds.length) printerSelect.value = printerIds[0];
+  const printers = currentRuntimeConfig.printers || [];
+  printerPages.innerHTML = '';
+  printers.forEach((printer) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'printer-page-button';
+    button.dataset.printerId = printer.id;
+    button.innerHTML = `<strong>${escapeHtml(printer.name || printer.id)}</strong><small>${escapeHtml(printer.id)}</small>`;
+    button.addEventListener('click', () => {
+      printerSelect.value = printer.id;
+      syncPrinterInputsForSelectedPrinter();
+      applyPrinterOverrideControls(currentSettings, printer.id);
+      updateSelectedPrinterUI();
+    });
+    printerPages.appendChild(button);
+  });
+  applyStyleTarget.innerHTML = '<option value="">Apply saved style to…</option>';
+  printers.forEach((printer) => {
+    const option = document.createElement('option');
+    option.value = printer.id;
+    option.textContent = printer.name || printer.id;
+    applyStyleTarget.appendChild(option);
+  });
+  updateSelectedPrinterUI();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[character]));
+}
+
+function updateSelectedPrinterUI() {
+  const printer = (currentRuntimeConfig.printers || []).find((entry) => entry.id === printerSelect.value);
+  selectedPrinterTitle.textContent = printer ? (printer.name || printer.id) : 'No printer selected';
+  selectedPrinterId.textContent = printer ? `ID: ${printer.id}` : '';
+  document.querySelectorAll('.printer-page-button').forEach((button) => {
+    button.classList.toggle('active', button.dataset.printerId === printerSelect.value);
+  });
 }
 
 function syncPrinterInputsForSelectedPrinter() {
@@ -171,17 +232,9 @@ function syncPrinterInputsForSelectedPrinter() {
 
 function readRuntimeConfig() {
   const pid = printerSelect.value;
-  let printers = Array.isArray(currentRuntimeConfig.printers) ? currentRuntimeConfig.printers.map((printer) => ({
-    ...printer,
-    id: printer.id,
-    name: printerNameInput.value.trim() || printer.name || printer.id || 'Printer',
-    type: printerTypeInput.value || printer.type || 'klipper',
-    moonraker_url: printerMoonrakerInput.value.trim() || null,
-    bambu_url: printerBambuInput.value.trim() || null,
-    access_code: printerAccessCodeInput.value.trim() || null,
-    serial_number: printerSerialInput.value.trim() || null,
-    obs: { ...(printer.obs || {}), scene: printerSceneInput.value.trim() || printer.obs?.scene || 'Printer' }
-  })) : [];
+  let printers = Array.isArray(currentRuntimeConfig.printers)
+    ? currentRuntimeConfig.printers.map((printer) => ({ ...printer }))
+    : [];
   if (pid) {
     const index = printers.findIndex((printer) => printer.id === pid);
     if (index >= 0) {
@@ -196,17 +249,16 @@ function readRuntimeConfig() {
         serial_number: printerSerialInput.value.trim() || null,
         obs: { ...(printers[index].obs || {}), scene: printerSceneInput.value.trim() || printers[index].obs?.scene || 'Printer' }
       };
-    } else if (currentRuntimeConfig.printers && currentRuntimeConfig.printers.length) {
+    } else {
       printers.unshift({
-        ...currentRuntimeConfig.printers[0],
         id: printerIdInput.value.trim() || pid,
-        name: printerNameInput.value.trim() || currentRuntimeConfig.printers[0].name || pid,
+        name: printerNameInput.value.trim() || pid,
         type: printerTypeInput.value || 'klipper',
         moonraker_url: printerMoonrakerInput.value.trim() || null,
         bambu_url: printerBambuInput.value.trim() || null,
         access_code: printerAccessCodeInput.value.trim() || null,
         serial_number: printerSerialInput.value.trim() || null,
-        obs: { ...(currentRuntimeConfig.printers[0].obs || {}), scene: printerSceneInput.value.trim() || currentRuntimeConfig.printers[0].obs?.scene || 'Printer' }
+        obs: { scene: printerSceneInput.value.trim() || 'Printer' }
       });
     }
   }
@@ -252,6 +304,7 @@ function applyRuntimeConfig(config) {
   populatePrinterSelect(currentRuntimeConfig.printers.map((printer) => printer.id));
   if (!printerSelect.value && currentRuntimeConfig.printers.length) printerSelect.value = currentRuntimeConfig.printers[0].id;
   syncPrinterInputsForSelectedPrinter();
+  updateSelectedPrinterUI();
 }
 
 async function loadRuntimeConfig() {
@@ -432,6 +485,7 @@ addPrinterButton.addEventListener('click', () => {
   populatePrinterSelect(currentRuntimeConfig.printers.map((entry) => entry.id));
   printerSelect.value = nextId;
   syncPrinterInputsForSelectedPrinter();
+  updateSelectedPrinterUI();
   setStatus(`Added ${nextId}. Save system config to keep it.`, true, stamp());
 });
 
@@ -493,6 +547,31 @@ printerSelect.addEventListener('change', () => {
   if (!selected) return;
   applyPrinterOverrideControls(currentSettings, selected);
   syncPrinterInputsForSelectedPrinter();
+  updateSelectedPrinterUI();
+});
+
+savePrinterStyleButton.addEventListener('click', () => {
+  const selected = readPrinterOverride();
+  if (!selected) {
+    setStatus('Select a printer before saving its style.', false);
+    return;
+  }
+  localStorage.setItem('printdirector-printer-style', JSON.stringify(selected.override));
+  setStatus(`Saved style from ${selected.pid}.`, true, stamp());
+});
+
+applyPrinterStyleButton.addEventListener('click', () => {
+  const target = applyStyleTarget.value;
+  const source = localStorage.getItem('printdirector-printer-style');
+  if (!target || !source) {
+    setStatus('Save a printer style and choose a target printer first.', false);
+    return;
+  }
+  const overrideMap = { ...(currentSettings.printer_overrides || {}) };
+  overrideMap[target] = JSON.parse(source);
+  currentSettings.printer_overrides = overrideMap;
+  if (target === printerSelect.value) applyPrinterOverrideControls(currentSettings, target);
+  setStatus(`Applied saved style to ${target}. Save overlay settings to keep it.`, true, stamp());
 });
 
 saveSystemButton.addEventListener('click', async () => {
