@@ -1,0 +1,38 @@
+printers:
+  - id: jotunn
+    name: Jötunn
+    type: klipper
+    moonraker_url: http://192.168.1.100:7125
+    obs:
+      scene: Printer - Jötunn
+      camera_source: Jötunn Camera
+  - id: fenrir
+    name: Fenrir
+    type: klipper
+    moonraker_url: http://192.168.1.101:7125
+    obs:
+      scene: Printer - Fenrir
+      camera_source: Fenrir Camera
+obs:
+  host: 127.0.0.1
+  port: 4455
+  password_env: OBS_WEBSOCKET_PASSWORD
+director:
+  enabled: true
+  rotation_interval: 30
+  idle_scene: PrintDirector Idle
+  overview_scene: Print Farm Overview
+  auto_start_stream: false
+  auto_stop_stream: false
+  stream_stop_delay: 300
+  near_complete_threshold: 0.95
+  event_hold_times:
+    print_started: 30
+    print_completed: 45
+    print_near_complete: 60
+    printer_error: 120
+overlay:
+  host: 127.0.0.1
+  port: 8765
+logging:
+  level: INFO

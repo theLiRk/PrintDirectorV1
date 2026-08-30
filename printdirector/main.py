@@ -1,0 +1,18 @@
+import argparse,asyncio,logging,sys
+import uvicorn
+from .config import load_config,ConfigurationError
+from .utils.logging import setup_logging
+from .app import Runtime
+from .overlay import create_app
+async def serve(args):
+ try: cfg=load_config(args.config)
+ except ConfigurationError as e: print(f"PrintDirector configuration error: {e}",file=sys.stderr); return 2
+ setup_logging(cfg.logging.level); logging.info("PrintDirector starting")
+ rt=Runtime(cfg,args.demo); app=create_app(rt); server=uvicorn.Server(uvicorn.Config(app,host=cfg.overlay.host,port=cfg.overlay.port,log_level=cfg.logging.level.lower()))
+ await rt.start()
+ try: await server.serve()
+ finally: await rt.stop()
+ return 0
+def main():
+ p=argparse.ArgumentParser(); p.add_argument('--config',default='config.yaml'); p.add_argument('--demo',action='store_true'); a=p.parse_args(); raise SystemExit(asyncio.run(serve(a)))
+if __name__=='__main__': main()
