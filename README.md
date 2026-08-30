@@ -15,7 +15,7 @@ Python 3.11+, Moonraker, and OBS Studio with WebSocket v5 enabled. OBS 28+ inclu
 ## Install
 ### Windows PowerShell
 ```powershell
-git clone <your-repository-url> PrintDirector
+git clone https://github.com/theLiRk/PrintDirectorV1 PrintDirector
 cd PrintDirector
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -49,24 +49,24 @@ In OBS, open **Tools > WebSocket Server Settings**, enable the server, keep port
 
 Create these scenes exactly as configured:
 - `PrintDirector Idle`
-- `Printer - Jötunn`
-- `Printer - Fenrir`
+- `Printer - Printer 1`
+- `Printer - Printer 2`
 - `Print Farm Overview`
 
 Add camera sources manually. PrintDirector never captures or analyzes video. Suggested structure:
 ```text
-Printer - Jötunn
-  Jötunn Camera
-  Jötunn Overlay (Browser Source)
-Printer - Fenrir
-  Fenrir Camera
-  Fenrir Overlay (Browser Source)
+Printer - Printer 1
+  Printer 1 Camera
+  Printer 1 Overlay (Browser Source)
+Printer - Printer 2
+  Printer 2 Camera
+  Printer 2 Overlay (Browser Source)
 Print Farm Overview
   Camera sources
   Farm Overview (Browser Source)
 ```
 Browser Source URLs:
-- Per printer: `http://127.0.0.1:8765/overlay/jotunn`
+- Per printer: `http://127.0.0.1:8765/overlay/printer1`
 - Overview: `http://127.0.0.1:8765/overlay/overview`
 - Dashboard: `http://127.0.0.1:8765/`
 Use a transparent browser-source background and a canvas-sized source for the overview.
