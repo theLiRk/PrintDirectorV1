@@ -26,6 +26,7 @@ class BambuAdapter(PrinterAdapter):
     self._mqtt = None
     self._messages = None
     self._loop = None
+    self._latest_payload = {}
 
   def _ensure_stop_event(self):
     if self._stop is None:
@@ -59,6 +60,13 @@ class BambuAdapter(PrinterAdapter):
       return
     self._loop.call_soon_threadsafe(self._messages.put_nowait, payload)
 
+  def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties=None):
+    if reason_code != 0 and self._loop is not None and self._messages is not None:
+      self._loop.call_soon_threadsafe(
+        self._messages.put_nowait,
+        ConnectionError(f'Bambu MQTT connection lost: {reason_code}'),
+      )
+
   def _connect(self):
     host, port = self._mqtt_host_port()
     if not host:
@@ -77,6 +85,7 @@ class BambuAdapter(PrinterAdapter):
     client.tls_insecure_set(True)
     client.on_connect = self._on_connect
     client.on_message = self._on_message
+    client.on_disconnect = self._on_disconnect
     client.connect(host, port, keepalive=60)
     client.loop_start()
     self._mqtt = client
@@ -89,6 +98,7 @@ class BambuAdapter(PrinterAdapter):
       client.disconnect()
     self._messages = None
     self._loop = None
+    self._latest_payload = {}
 
   async def stop(self):
     self._ensure_stop_event().set()
@@ -147,10 +157,15 @@ class BambuAdapter(PrinterAdapter):
     except (TypeError, ValueError):
       return default
 
+  def _pick_int(self, payload: Any, keys, default=None):
+    value = self._pick_number(payload, keys, default)
+    return None if value is None else int(value)
+
   def _apply_payload(self, payload: dict):
-    state_payload = payload
-    if isinstance(payload.get('msg'), dict):
-      state_payload = payload['msg']
+    self._merge_payload(self._latest_payload, payload)
+    state_payload = self._latest_payload
+    if isinstance(state_payload.get('msg'), dict):
+      state_payload = state_payload['msg']
     if isinstance(state_payload.get('print'), dict):
       state_payload = {**state_payload, **state_payload['print']}
 
@@ -200,13 +215,20 @@ class BambuAdapter(PrinterAdapter):
       'bed_target': self._pick_number(
         state_payload, ['bed_target_temper', 'bed_target']
       ),
-      'current_layer': self._pick_number(
+      'current_layer': self._pick_int(
         state_payload, ['layer_num', 'current_layer']
       ),
-      'total_layers': self._pick_number(
+      'total_layers': self._pick_int(
         state_payload, ['total_layer_num', 'total_layers']
       ),
       'online': True,
       'last_update': datetime.now(timezone.utc),
     })
     self.publish()
+
+  def _merge_payload(self, target: dict, update: dict) -> None:
+    for key, value in update.items():
+     if isinstance(value, dict) and isinstance(target.get(key), dict):
+       self._merge_payload(target[key], value)
+     else:
+       target[key] = value
