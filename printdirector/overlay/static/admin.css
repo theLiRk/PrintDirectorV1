@@ -1,0 +1,195 @@
+html,
+body {
+    min-height: 100%;
+}
+
+body.settings-page {
+    min-height: 100vh;
+    margin: 0;
+    padding: 32px 24px 48px;
+    background:
+        radial-gradient(circle at 10% 0%, rgba(56, 189, 248, 0.18), transparent 30%),
+        linear-gradient(145deg, #0f172a 0%, #020617 78%) !important;
+    color: #e2e8f0;
+    font: 16px/1.5 system-ui, sans-serif;
+}
+
+.settings-page *,
+.settings-page *::before,
+.settings-page *::after {
+    box-sizing: border-box;
+}
+
+.settings-page > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    width: min(1440px, 100%);
+    margin: 0 auto 20px;
+}
+
+.settings-page h1,
+.settings-page h2,
+.settings-page h3,
+.settings-page p {
+    margin-top: 0;
+}
+
+.settings-page h1 {
+    margin-bottom: 0;
+    font-size: clamp(1.8rem, 3vw, 2.6rem);
+    letter-spacing: -0.04em;
+}
+
+.settings-page a {
+    color: #7dd3fc;
+    text-decoration: none;
+}
+
+.settings-page .settings-toolbar,
+.settings-page .settings-layout .panel {
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.9);
+    box-shadow: 0 24px 50px rgba(2, 6, 23, 0.42);
+    backdrop-filter: blur(10px);
+}
+
+.settings-page .settings-toolbar {
+    background: rgba(15, 23, 42, 0.96);
+}
+
+.settings-page .settings-layout {
+    width: min(1440px, 100%);
+}
+
+.settings-page .settings-nav {
+    align-self: start;
+    overflow: hidden;
+}
+
+.settings-page .settings-nav button,
+.settings-page .settings-nav a,
+.settings-page button {
+    appearance: none;
+    border: 1px solid #475569;
+    border-radius: 9px;
+    background: linear-gradient(180deg, #334155, #1e293b);
+    color: #f8fafc;
+    font: 600 0.9rem/1.2 system-ui, sans-serif;
+    cursor: pointer;
+    transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.settings-page .settings-nav button {
+    width: 100%;
+    padding: 11px 12px;
+    border-color: transparent;
+    background: transparent;
+    color: #94a3b8;
+    text-align: left;
+}
+
+.settings-page .settings-nav a {
+    display: block;
+    width: 100%;
+    padding: 11px 12px;
+    border-color: transparent;
+    background: transparent;
+    color: #94a3b8;
+    text-align: left;
+}
+
+.settings-page .settings-nav a:hover,
+.settings-page .settings-nav a.active {
+    border-color: #7dd3fc;
+    background: linear-gradient(180deg, #0369a1, #075985);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.settings-page button {
+    padding: 10px 14px;
+}
+
+.settings-page button:hover,
+.settings-page .settings-nav button:hover,
+.settings-page .settings-nav button.active {
+    border-color: #7dd3fc;
+    background: linear-gradient(180deg, #0369a1, #075985);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.settings-page input,
+.settings-page select {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid #475569;
+    border-radius: 9px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font: 16px/1.2 system-ui, sans-serif;
+}
+
+.settings-page input[type="text"],
+.settings-page input[type="password"],
+.settings-page input[type="number"],
+.settings-page select {
+    padding: 10px 12px;
+}
+
+.settings-page input:focus,
+.settings-page select:focus,
+.settings-page button:focus-visible {
+    outline: 2px solid #38bdf8;
+    outline-offset: 2px;
+}
+
+.settings-page input[type="checkbox"] {
+    width: 18px;
+    min-height: 18px;
+    accent-color: #38bdf8;
+}
+
+.settings-page input[type="range"] {
+    min-height: 0;
+    accent-color: #38bdf8;
+}
+
+.settings-page input[type="color"] {
+    padding: 3px;
+}
+
+.settings-page fieldset {
+    background: rgba(2, 6, 23, 0.24);
+}
+
+.settings-page [hidden] {
+    display: none !important;
+}
+
+.settings-page .printer-page-button.active {
+    border-color: #7dd3fc;
+    background: rgba(14, 116, 144, 0.45);
+}
+
+.settings-page .actions.sticky-actions {
+    background: rgba(2, 8, 23, 0.96);
+}
+
+.settings-page .actions button[type="submit"] {
+    background: linear-gradient(180deg, #0284c7, #0369a1);
+}
+
+@media (max-width: 800px) {
+    body.settings-page {
+        padding: 20px 16px 32px;
+    }
+
+    .settings-page > header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

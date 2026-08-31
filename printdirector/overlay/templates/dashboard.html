@@ -1,1 +1,52 @@
-<!doctype html><html><head><meta charset="utf-8"><title>PrintDirector</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/dashboard.css"></head><body><header><h1>PrintDirector</h1><div id="director"></div></header><nav><button data-action="return-auto">RETURN TO AUTO</button><button data-show="overview">SHOW OVERVIEW</button><button data-show="idle">SHOW IDLE</button><button data-stream="start">START STREAM</button><button data-stream="stop">STOP STREAM</button></nav><main id="overview" class="grid"></main><script src="/static/overlay.js"></script><script src="/static/dashboard.js"></script></body></html>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PrintDirector Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/dashboard.css?v=2">
+</head>
+<body class="dashboard-page">
+  <header class="dashboard-header">
+    <div>
+      <p class="eyebrow">PRINT FARM CONTROL</p>
+      <h1>PrintDirector</h1>
+      <p class="subtitle">Monitor every printer and control what OBS is showing.</p>
+    </div>
+    <div class="dashboard-status">
+      <span class="status-dot"></span>
+      <span id="director">Connecting…</span>
+    </div>
+  </header>
+
+  <section class="control-panel" aria-label="Director controls">
+    <div class="control-group">
+      <span class="control-label">Director</span>
+      <button data-action="return-auto">Return to auto</button>
+      <button data-show="overview">Show overview</button>
+      <button data-show="idle">Show idle</button>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Stream</span>
+      <button data-stream="start">Start stream</button>
+      <button data-stream="stop">Stop stream</button>
+    </div>
+    <div class="dashboard-links">
+      <a href="/preview">Live preview</a>
+      <a href="/settings">Settings</a>
+    </div>
+  </section>
+
+  <section class="section-header">
+    <div>
+      <p class="eyebrow">LIVE STATUS</p>
+      <h2>Printers</h2>
+    </div>
+    <span id="last-refresh">Waiting for updates…</span>
+  </section>
+  <main id="overview" class="grid"></main>
+
+  <script src="/static/overlay.js?v=2"></script>
+  <script src="/static/dashboard.js?v=2"></script>
+</body>
+</html>

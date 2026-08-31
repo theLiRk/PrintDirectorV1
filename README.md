@@ -13,34 +13,55 @@ PrintDirector is a local, asynchronous OBS director for multiple 3D printers. Mo
 Python 3.11+, Moonraker, and OBS Studio with WebSocket v5 enabled. OBS 28+ includes obs-websocket.
 
 ## Install
-### Windows PowerShell
+The project now includes setup helpers for first-run installation.
+
+### Quick install
+
+#### macOS/Linux
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+#### Windows PowerShell
 ```powershell
-git clone https://github.com/theLiRk/PrintDirectorV1 PrintDirector
-cd PrintDirector
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-Copy-Item config.example.yaml config.yaml
-Copy-Item .env.example .env
-$env:OBS_WEBSOCKET_PASSWORD="your-password"
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+./install.ps1
+```
+
+This bypass applies only to the current PowerShell session and does not change
+the machine-wide execution policy. If Windows marked the downloaded script as
+blocked, run `Unblock-File .\install.ps1` first.
+
+The scripts will:
+- create a local `.venv`
+- install project dependencies from `requirements.txt`
+- create `config.yaml` from `config.example.yaml` if it is missing
+- create `.env` from `.env.example` if it is missing
+- populate `OBS_WEBSOCKET_PASSWORD` in `.env` when the environment variable is already set
+
+After installation, activate the environment and start the app:
+
+```bash
+source .venv/bin/activate
+set -a && source .env && set +a
 python -m printdirector.main
 ```
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:OBS_WEBSOCKET_PASSWORD = "your-password"
+python -m printdirector.main
+```
+
 Every new PowerShell session must run `.\.venv\Scripts\Activate.ps1` after entering the project directory.
 
-### macOS/Linux
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-cp config.example.yaml config.yaml
-export OBS_WEBSOCKET_PASSWORD='your-password'
-python -m printdirector.main
-```
-
 ## Configuration
-Edit `config.yaml`. Add any number of printers. IDs must be unique and URL-safe. The default dashboard binds to `127.0.0.1`; change this only on a trusted LAN. Secrets come from environment variables, not YAML.
+Edit `config.yaml`. Add any number of printers. IDs must be unique and URL-safe. The default dashboard binds to `127.0.0.1`; change this only on a trusted LAN and enable `overlay.allow_lan` intentionally. Secrets come from environment variables, not YAML.
+
+The dashboard includes a local settings page at `/settings` for overlay appearance, field visibility, profiles, and per-printer card overrides. Changes are saved to `overlay-settings.json` by default.
+
+Optional local auth is available for shared LAN scenarios via `auth.enabled` and `auth.token_env` (for example `PRINTDIRECTOR_TOKEN`). When enabled, the state-changing API endpoints require a bearer token.
 
 Moonraker normally listens on port 7125. Find its host address in Mainsail/Fluidd, your router, or the printer host. Verify it locally by opening `http://HOST:7125/printer/info`. If Moonraker authorization restricts your client, allow the PrintDirector host in Moonraker's trusted clients.
 
@@ -49,24 +70,24 @@ In OBS, open **Tools > WebSocket Server Settings**, enable the server, keep port
 
 Create these scenes exactly as configured:
 - `PrintDirector Idle`
-- `Printer - Printer 1`
-- `Printer - Printer 2`
+- `Printer - Jötunn`
+- `Printer - Fenrir`
 - `Print Farm Overview`
 
 Add camera sources manually. PrintDirector never captures or analyzes video. Suggested structure:
 ```text
-Printer - Printer 1
-  Printer 1 Camera
-  Printer 1 Overlay (Browser Source)
-Printer - Printer 2
-  Printer 2 Camera
-  Printer 2 Overlay (Browser Source)
+Printer - Jötunn
+  Jötunn Camera
+  Jötunn Overlay (Browser Source)
+Printer - Fenrir
+  Fenrir Camera
+  Fenrir Overlay (Browser Source)
 Print Farm Overview
   Camera sources
   Farm Overview (Browser Source)
 ```
 Browser Source URLs:
-- Per printer: `http://127.0.0.1:8765/overlay/printer1`
+- Per printer: `http://127.0.0.1:8765/overlay/jotunn`
 - Overview: `http://127.0.0.1:8765/overlay/overview`
 - Dashboard: `http://127.0.0.1:8765/`
 Use a transparent browser-source background and a canvas-sized source for the overview.
@@ -91,4 +112,4 @@ Demo mode uses configured printer names/scenes but does not contact hardware.
 - **PowerShell blocks activation:** use `Set-ExecutionPolicy -Scope Process Bypass`, then activate again.
 
 ## Design notes
-A future adapter can implement `PrinterAdapter` without changing director logic. Bambu Lab and computer vision are intentionally not included. Temporary loss of one printer or OBS does not terminate the application.
+A future adapter can implement `PrinterAdapter` without changing director logic. Bambu Lab support is included for LAN-mode printers; computer vision is intentionally not included. Temporary loss of one printer or OBS does not terminate the application.

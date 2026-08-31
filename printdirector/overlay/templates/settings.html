@@ -1,0 +1,494 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PrintDirector Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/dashboard.css">
+  <link rel="stylesheet" href="/static/admin.css">
+  <style>
+    :root {
+      --page-bg: #020817;
+      --panel-bg: rgba(15, 23, 42, 0.92);
+      --panel-border: rgba(148, 163, 184, 0.28);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --success: #86efac;
+      --shadow: 0 24px 50px rgba(2, 6, 23, 0.45);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 32px 24px 48px;
+      background: radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 30%), var(--page-bg);
+      color: var(--text);
+      font: 16px/1.5 system-ui, sans-serif;
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      margin: 0 auto 20px; max-width: 1200px;
+    }
+    h1 { margin: 0; font-size: clamp(1.6rem, 2vw, 2.4rem); }
+    a { color: #7dd3fc; text-decoration: none; }
+    .settings-layout {
+      display: grid;
+      grid-template-columns: minmax(190px, 230px) minmax(420px, 620px) minmax(300px, 1fr);
+      gap: 24px;
+      max-width: 1440px;
+      margin: 0 auto;
+      align-items: start;
+    }
+    .settings-nav {
+      position: sticky;
+      top: 24px;
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+    }
+    .settings-nav-title {
+      padding: 4px 10px 10px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .settings-nav button {
+      width: 100%;
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+    }
+    .settings-nav button:hover,
+    .settings-nav button.active {
+      border-color: rgba(125, 211, 252, 0.45);
+      background: rgba(14, 116, 144, 0.25);
+      color: white;
+      box-shadow: none;
+    }
+    .printer-pages {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .printer-page-button {
+      display: grid;
+      gap: 2px;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .printer-page-button small {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 400;
+    }
+    .printer-page-button.active {
+      border-color: rgba(125, 211, 252, 0.8);
+      background: rgba(14, 116, 144, 0.35);
+    }
+    .selected-printer {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin: 8px 0 14px;
+    }
+    .selected-printer h3 { margin: 0; }
+    .selected-printer span { color: var(--muted); font-size: 0.82rem; }
+    .settings-toolbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      max-width: 1440px;
+      margin: 0 auto 20px;
+      padding: 14px 16px;
+    }
+    .settings-toolbar label {
+      width: min(360px, 100%);
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .settings-toolbar select { margin-top: 6px; }
+    .connection-settings { display: grid; gap: 12px; }
+    .connection-settings[hidden] { display: none !important; }
+    .connection-heading {
+      color: #7dd3fc;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+    form { display: grid; gap: 18px; }
+    .settings-section { display: grid; gap: 18px; }
+    .section-heading { display: grid; gap: 4px; }
+    .section-heading h2 { margin: 0; font-size: 1.25rem; }
+    .section-heading p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    .field-help { margin: -4px 0 2px; color: var(--muted); font-size: 0.88rem; }
+    fieldset {
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 12px;
+      padding: 16px 14px 12px;
+      margin: 0;
+      display: grid;
+      gap: 12px;
+    }
+    legend {
+      color: #cbd5e1;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      padding: 0 8px;
+    }
+    label {
+      display: grid;
+      gap: 8px;
+      font-size: 0.95rem;
+      color: #dfe7f1;
+    }
+    input, select, button {
+      font: inherit;
+    }
+    input[type="text"], select {
+      border: 1px solid #475569; border-radius: 10px; background: rgba(15, 23, 42, 0.9); color: var(--text);
+      padding: 10px 12px;
+    }
+    input[type="file"] { color: var(--text); }
+    input[type="color"] {
+      width: 100%; min-height: 42px; border-radius: 10px; border: 1px solid #475569; background: #0f172a; cursor: pointer;
+    }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+    .token-row {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .token-row input {
+      flex: 1; min-width: 0; border: 1px solid #475569; border-radius: 10px; background: rgba(15, 23, 42, 0.9); color: var(--text); padding: 10px 12px;
+    }
+    .profile-row {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    }
+    .profile-row > * { flex: 1 1 150px; }
+    .import-wrap {
+      display: inline-flex; align-items: center; gap: 8px; border: 1px solid #475569; border-radius: 10px; padding: 10px 12px; background: rgba(15, 23, 42, 0.5);
+    }
+    .import-wrap input { max-width: 120px; }
+    .checkbox-row {
+      display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px;
+      background: rgba(15, 23, 42, 0.38);
+    }
+    .status {
+      min-height: 24px; color: var(--success); font-size: 0.94rem;
+    }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .sticky-actions {
+      position: sticky;
+      bottom: 16px;
+      z-index: 2;
+      padding: 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      background: rgba(2, 8, 23, 0.92);
+      backdrop-filter: blur(8px);
+    }
+    .actions button[type="submit"] {
+      background: linear-gradient(180deg, #0284c7, #0369a1);
+      border-color: #38bdf8;
+    }
+    button {
+      appearance: none; border: 1px solid #475569; border-radius: 10px; cursor: pointer;
+      background: linear-gradient(180deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1));
+      color: white; padding: 10px 16px; font-weight: 600;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+    button:hover {
+      transform: translateY(-1px); border-color: rgba(125, 211, 252, 0.8); box-shadow: 0 10px 24px rgba(56, 189, 248, 0.18);
+    }
+    .preset-row {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;
+    }
+    .preset-btn {
+      padding: 8px 10px; font-size: 0.82rem; background: rgba(15, 23, 42, 0.55); border-color: rgba(148, 163, 184, 0.3);
+      color: #e2e8f0;
+    }
+    .preset-btn.active {
+      background: linear-gradient(180deg, rgba(14, 116, 144, 0.5), rgba(15, 23, 42, 0.9));
+      border-color: rgba(125, 211, 252, 0.8);
+    }
+    .preview {
+      min-height: 380px; display: flex; align-items: center; justify-content: center; background: rgba(8, 13, 25, 0.86);
+    }
+    .preview-card {
+      width: min(100%, 440px); background: rgba(13,18,28,.9); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 16px; padding: 18px; box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+    .preview-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 700;
+    }
+    .preview-card .meta { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+    .preview-card .bar { height: 10px; background: rgba(148, 163, 184, 0.18); border-radius: 999px; overflow: hidden; margin: 12px 0; }
+    .preview-card .bar i { display: block; height: 100%; background: var(--accent, #38bdf8); }
+    .preview-card .state { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72rem; }
+    .preview-card .file { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #cbd5e1; }
+    .preview-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; color: var(--muted); font-size: 0.8rem; }
+    @media (max-width: 800px) {
+      .settings-layout { grid-template-columns: 1fr; }
+      .settings-nav { position: static; display: flex; overflow-x: auto; }
+      .settings-nav-title { display: none; }
+      .settings-nav button { width: auto; white-space: nowrap; }
+      body { padding: 20px 16px 32px; }
+      header { flex-direction: column; align-items: flex-start; }
+      .settings-toolbar { align-items: stretch; flex-direction: column; }
+    }
+  </style>
+</head>
+<body class="settings-page">
+  <header>
+    <h1>PrintDirector Settings</h1>
+    <a href="/" style="color:#7dd3fc; text-decoration:none;">Back to dashboard</a>
+  </header>
+
+  <section class="panel settings-toolbar" aria-label="Active printer">
+    <label>Editing printer
+      <select id="printer-top-select">
+        <option value="">Loading printers…</option>
+      </select>
+    </label>
+    <span class="section-heading">
+      <strong>Printer-specific settings</strong>
+      <span>Choose a printer before editing its connection or overlay style.</span>
+    </span>
+  </section>
+
+  <div class="settings-layout">
+    <nav class="panel settings-nav" aria-label="Settings sections">
+      <div class="settings-nav-title">Settings</div>
+      <a class="settings-tab active" href="#settings-general" data-section="general">General</a>
+      <a class="settings-tab" href="#settings-connections" data-section="connections">Connections</a>
+      <a class="settings-tab" href="#settings-printers" data-section="printers">Printers</a>
+      <a class="settings-tab" href="#settings-profiles" data-section="profiles">Profiles</a>
+    </nav>
+    <div class="panel">
+      <form id="settings-form">
+        <fieldset id="settings-general" data-settings-section="general">
+          <legend>Access</legend>
+          <label>API token (optional)
+            <div class="token-row">
+              <input id="api-token" type="password" placeholder="Bearer token for shared LAN" />
+              <button type="button" id="token-save">Store</button>
+            </div>
+          </label>
+        </fieldset>
+
+        <fieldset data-settings-section="general">
+          <legend>Default appearance</legend>
+          <p class="field-help">These colors and display options apply to every printer unless that printer has an override below.</p>
+          <div class="preset-row" aria-label="Theme presets">
+            <button type="button" class="preset-btn" data-preset="dark">Dark</button>
+            <button type="button" class="preset-btn" data-preset="light">Light</button>
+            <button type="button" class="preset-btn" data-preset="mint">Mint</button>
+            <button type="button" class="preset-btn" data-preset="sunset">Sunset</button>
+          </div>
+          <label>Theme
+            <select name="theme">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+          <label>Default background color
+            <input type="color" name="background_color" value="#0b0e14">
+          </label>
+          <label>Default text color
+            <input type="color" name="text_color" value="#f5f7fa">
+          </label>
+          <label>Default accent color
+            <input type="color" name="accent_color" value="#38bdf8">
+          </label>
+          <label>Panel opacity
+            <input type="range" name="panel_opacity" min="0.2" max="1" step="0.05">
+          </label>
+          <label>Font family
+            <select name="font_family">
+              <option value="system-ui">System UI</option>
+              <option value="Cinzel, serif">Cinzel</option>
+              <option value="Georgia, serif">Georgia</option>
+            </select>
+          </label>
+          <label>Font scale
+            <input type="range" name="font_scale" min="0.8" max="1.5" step="0.05">
+          </label>
+        </fieldset>
+
+        <fieldset data-settings-section="general">
+          <legend>Overlay fields</legend>
+          <label class="checkbox-row"><input type="checkbox" name="show_filename"> Show filename</label>
+          <label class="checkbox-row"><input type="checkbox" name="show_state"> Show state</label>
+          <label class="checkbox-row"><input type="checkbox" name="show_eta"> Show ETA</label>
+          <label class="checkbox-row"><input type="checkbox" name="show_temps"> Show temperatures</label>
+          <label class="checkbox-row"><input type="checkbox" name="show_layers"> Show layers</label>
+        </fieldset>
+
+        <fieldset id="settings-connections" data-settings-section="connections">
+          <legend>OBS connection</legend>
+          <label>OBS host
+            <input type="text" id="obs-host" placeholder="127.0.0.1" />
+          </label>
+          <label>OBS port
+            <input type="number" id="obs-port" min="1" max="65535" placeholder="4455" />
+          </label>
+          <label>OBS password env name
+            <input type="text" id="obs-password-env" placeholder="OBS_WEBSOCKET_PASSWORD" />
+          </label>
+          <label>OBS password value
+            <input type="password" id="obs-password" placeholder="Optional local secret" />
+          </label>
+        </fieldset>
+
+        <fieldset data-settings-section="connections">
+          <legend>Local network</legend>
+          <label>Overlay host
+            <input type="text" id="overlay-host" placeholder="127.0.0.1" />
+          </label>
+          <label>Overlay port
+            <input type="number" id="overlay-port" min="1" max="65535" placeholder="8765" />
+          </label>
+          <label class="checkbox-row"><input type="checkbox" id="allow-lan"> Allow LAN access</label>
+        </fieldset>
+
+        <fieldset id="settings-printers" data-settings-section="printers">
+          <legend>Printer workspace</legend>
+          <p class="field-help">Select a printer first. Settings in the card appearance section override the defaults; they affect only the selected printer.</p>
+          <div id="printer-pages" class="printer-pages" aria-label="Printers"></div>
+          <select id="printer-override-select" hidden aria-hidden="true"><option value="">Select a printer</option></select>
+          <div class="selected-printer">
+            <h3 id="selected-printer-title">No printer selected</h3>
+            <span id="selected-printer-id"></span>
+          </div>
+          <div class="profile-row">
+            <button type="button" id="add-printer">Add printer</button>
+            <button type="button" id="remove-printer">Remove this printer</button>
+            <button type="button" id="test-printer">Test connection</button>
+          </div>
+          <label>Printer ID
+            <input type="text" id="printer-id" placeholder="printer-a1" />
+          </label>
+          <label>Printer name
+            <input type="text" id="printer-name" placeholder="A1" />
+          </label>
+          <label>OBS scene
+            <input type="text" id="printer-scene" placeholder="Printer - A1" />
+          </label>
+          <label>Label override
+            <input type="text" id="printer-label-override" placeholder="Optional display label" />
+          </label>
+          <label>Printer type
+            <select id="printer-type">
+              <option value="klipper">Klipper</option>
+              <option value="bambu">Bambu</option>
+            </select>
+          </label>
+          <div id="klipper-settings" class="connection-settings">
+            <div class="connection-heading">Klipper connection</div>
+            <label>Moonraker URL
+              <input type="text" id="printer-moonraker-url" placeholder="http://192.168.1.100:7125" />
+            </label>
+          </div>
+          <div id="bambu-settings" class="connection-settings" hidden>
+            <div class="connection-heading">Bambu LAN connection</div>
+            <label>Bambu MQTT URL
+              <input type="text" id="printer-bambu-url" placeholder="mqtt://192.168.1.120:8883" />
+            </label>
+            <label>Access code
+              <input type="password" id="printer-access-code" placeholder="Bambu access code" />
+            </label>
+            <label>Serial number
+              <input type="text" id="printer-serial-number" placeholder="ABC123456" />
+            </label>
+          </div>
+          <label>Printer accent override
+            <input type="color" id="printer-accent-color" value="#38bdf8">
+          </label>
+          <label>Printer text color override
+            <input type="color" id="printer-text-color" value="#f5f7fa">
+          </label>
+          <label>Printer panel opacity override
+            <input type="range" id="printer-panel-opacity" min="0.2" max="1" step="0.05" value="0.92">
+          </label>
+          <div class="checkbox-row"><input type="checkbox" id="printer-show-filename"> Show filename</div>
+          <div class="checkbox-row"><input type="checkbox" id="printer-show-state"> Show state</div>
+          <div class="checkbox-row"><input type="checkbox" id="printer-show-eta"> Show ETA</div>
+          <div class="checkbox-row"><input type="checkbox" id="printer-show-temps"> Show temperatures</div>
+          <div class="checkbox-row"><input type="checkbox" id="printer-show-layers"> Show layers</div>
+          <button type="button" id="clear-printer-override">Use default appearance for this printer</button>
+          <div class="profile-row">
+            <button type="button" id="save-printer-style">Save this printer's style</button>
+            <select id="apply-style-target" aria-label="Apply saved style to">
+              <option value="">Apply saved style to…</option>
+            </select>
+            <button type="button" id="apply-printer-style">Apply saved style</button>
+          </div>
+        </fieldset>
+
+        <fieldset id="settings-profiles" data-settings-section="profiles">
+          <legend>Profile</legend>
+          <div class="profile-row">
+            <input type="text" id="profile-name" placeholder="Profile name" aria-label="Profile name" />
+            <button type="button" id="save-profile">Save profile</button>
+          </div>
+          <div class="profile-row">
+            <select id="profiles-list"><option value="">Choose a saved profile</option></select>
+            <button type="button" id="load-profile">Load</button>
+            <button type="button" id="delete-profile">Delete</button>
+          </div>
+          <div class="profile-row">
+            <button type="button" id="export-profile">Export JSON</button>
+            <label class="import-wrap"><input type="file" id="import-profile" accept="application/json" /> Import</label>
+          </div>
+        </fieldset>
+
+        <div class="actions sticky-actions">
+          <button type="submit">Save overlay settings</button>
+          <button type="button" id="save-system-config">Save system config</button>
+          <button type="button" id="reset-settings">Reset defaults</button>
+        </div>
+        <div id="status" class="status" aria-live="polite"></div>
+      </form>
+    </div>
+
+    <div class="panel preview">
+      <div class="preview-card" id="preview-card">
+        <div class="preview-header">
+          <span class="name">Jötunn</span>
+          <span class="state">printing</span>
+        </div>
+        <div class="file" style="margin-top:10px;">MyModel.gcode</div>
+        <div class="bar"><i style="width:62%"></i></div>
+        <div class="meta"><span>62.0%</span><span>ETA 00:17</span></div>
+        <div class="meta"><span>Hotend 205° / 210°</span><span>Bed 60° / 65°</span></div>
+        <div class="preview-actions"><span>Layer 32 / 51</span><span>Live preview</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/admin.js?v=8"></script>
+</body>
+</html>

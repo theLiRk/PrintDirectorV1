@@ -6,6 +6,15 @@ printers:
     obs:
       scene: Printer - Jötunn
       camera_source: Jötunn Camera
+  - id: a1
+    name: A1
+    type: bambu
+    bambu_url: mqtt://192.168.1.120:8883
+    access_code: "12345678"
+    serial_number: "ABC123456"
+    obs:
+      scene: Printer - A1
+      camera_source: A1 Camera
   - id: fenrir
     name: Fenrir
     type: klipper
@@ -34,5 +43,23 @@ director:
 overlay:
   host: 127.0.0.1
   port: 8765
+  allow_lan: false
+  settings_file: overlay-settings.json
+  style:
+    theme: dark
+    background_color: "#0b0e14"
+    text_color: "#f5f7fa"
+    accent_color: "#38bdf8"
+    panel_opacity: 0.92
+    font_scale: 1.0
+    show_filename: true
+    show_state: true
+    show_eta: true
+    show_temps: true
+    show_layers: true
+    printer_overrides: {}
+auth:
+  enabled: false
+  token_env: PRINTDIRECTOR_TOKEN
 logging:
   level: INFO

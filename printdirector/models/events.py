@@ -1,6 +1,12 @@
-from enum import StrEnum
 from dataclasses import dataclass, field
+from enum import Enum
 from time import monotonic
+
+
+class StrEnum(str, Enum):
+ pass
+
+
 class EventType(StrEnum):
  PRINT_STARTED="print_started"; PRINT_PAUSED="print_paused"; PRINT_RESUMED="print_resumed"; PRINT_NEAR_COMPLETE="print_near_complete"; PRINT_COMPLETED="print_completed"; PRINTER_ERROR="printer_error"; PRINTER_OFFLINE="printer_offline"; PRINTER_ONLINE="printer_online"
 DEFAULT_PRIORITIES={EventType.PRINTER_ERROR:100,EventType.PRINT_STARTED:80,EventType.PRINT_COMPLETED:70,EventType.PRINT_NEAR_COMPLETE:60,EventType.PRINT_PAUSED:50,EventType.PRINT_RESUMED:55,EventType.PRINTER_OFFLINE:40,EventType.PRINTER_ONLINE:20}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PrintDirector Live Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; padding: 24px; background: radial-gradient(circle at top, rgba(56,189,248,0.12), transparent 30%), #020817;
+      color: #e2e8f0; font: 16px/1.5 system-ui, sans-serif;
+    }
+    .shell { max-width: 1400px; margin: 0 auto; }
+    .toolbar {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .toolbar a, .toolbar button {
+      display: inline-flex; align-items: center; justify-content: center; text-decoration: none; border-radius: 10px; border: 1px solid #475569; background: #1e293b; color: white; padding: 10px 14px; cursor: pointer; font: inherit;
+    }
+    .layout {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;
+    }
+    .card {
+      background: rgba(13, 18, 28, 0.9); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 18px; padding: 18px; box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+    }
+    .card .meta { display: flex; justify-content: space-between; gap: 12px; }
+    .card .bar { height: 10px; background: rgba(148, 163, 184, 0.18); border-radius: 999px; overflow: hidden; margin: 12px 0; }
+    .card .bar i { display: block; height: 100%; background: #38bdf8; }
+    .state { text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.08em; }
+    .file { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 12px 0; }
+    .label { margin-bottom: 8px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="toolbar">
+      <h1>OBS Live Preview</h1>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <a href="/settings">Back to settings</a>
+        <a href="/">Dashboard</a>
+      </div>
+    </div>
+    <div id="preview" class="layout"></div>
+  </div>
+  <script src="/static/preview.js"></script>
+</body>
+</html>
