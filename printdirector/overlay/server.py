@@ -7,6 +7,7 @@ import aiohttp
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 
 from printdirector.config.models import OverlayThemeConfig
 from printdirector.printers.bambu import BambuAdapter
@@ -133,7 +134,10 @@ def create_app(runtime):
  def update_settings(request: Request, payload: dict):
   if runtime.config.auth.enabled: check_auth(runtime.config, request)
   payload = {k:v for k,v in payload.items() if k != 'printer_ids'}
-  style = OverlayThemeConfig.model_validate(payload)
+  try:
+   style = OverlayThemeConfig.model_validate(payload)
+  except ValidationError as exc:
+   raise HTTPException(422, f'Invalid overlay settings: {exc}') from exc
   persist_style(runtime.config, style)
   return {**style.model_dump(mode='json'), 'printer_ids': list(runtime.manager.adapters.keys())}
 
@@ -237,8 +241,11 @@ def create_app(runtime):
    merged['auth'] = {**merged.get('auth', {}), **payload['auth']}
   if 'printers' in payload and isinstance(payload['printers'], list):
    merged['printers'] = payload['printers']
+  try:
+   runtime.config = runtime.config.model_validate(merged)
+  except ValidationError as exc:
+   raise HTTPException(422, f'Invalid system configuration: {exc}') from exc
   persist_local_config(merged)
-  runtime.config = runtime.config.model_validate(merged)
   return runtime.config.model_dump(mode='json')
 
  @app.post('/api/director/auto/{enabled}')

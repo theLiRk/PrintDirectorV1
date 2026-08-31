@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/dashboard.css">
+  <link rel="stylesheet" href="/static/admin.css">
   <style>
     :root {
       --page-bg: #020817;
@@ -101,6 +102,33 @@
     }
     .selected-printer h3 { margin: 0; }
     .selected-printer span { color: var(--muted); font-size: 0.82rem; }
+    .settings-toolbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      max-width: 1440px;
+      margin: 0 auto 20px;
+      padding: 14px 16px;
+    }
+    .settings-toolbar label {
+      width: min(360px, 100%);
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .settings-toolbar select { margin-top: 6px; }
+    .connection-settings { display: grid; gap: 12px; }
+    .connection-settings[hidden] { display: none !important; }
+    .connection-heading {
+      color: #7dd3fc;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
     .panel {
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
@@ -114,6 +142,7 @@
     .section-heading { display: grid; gap: 4px; }
     .section-heading h2 { margin: 0; font-size: 1.25rem; }
     .section-heading p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    .field-help { margin: -4px 0 2px; color: var(--muted); font-size: 0.88rem; }
     fieldset {
       border: 1px solid rgba(148, 163, 184, 0.22);
       border-radius: 12px;
@@ -228,26 +257,39 @@
       .settings-nav button { width: auto; white-space: nowrap; }
       body { padding: 20px 16px 32px; }
       header { flex-direction: column; align-items: flex-start; }
+      .settings-toolbar { align-items: stretch; flex-direction: column; }
     }
   </style>
 </head>
-<body>
+<body class="settings-page">
   <header>
     <h1>PrintDirector Settings</h1>
     <a href="/" style="color:#7dd3fc; text-decoration:none;">Back to dashboard</a>
   </header>
 
+  <section class="panel settings-toolbar" aria-label="Active printer">
+    <label>Editing printer
+      <select id="printer-top-select">
+        <option value="">Loading printers…</option>
+      </select>
+    </label>
+    <span class="section-heading">
+      <strong>Printer-specific settings</strong>
+      <span>Choose a printer before editing its connection or overlay style.</span>
+    </span>
+  </section>
+
   <div class="settings-layout">
     <nav class="panel settings-nav" aria-label="Settings sections">
       <div class="settings-nav-title">Settings</div>
-      <button type="button" class="settings-tab active" data-section="general">General</button>
-      <button type="button" class="settings-tab" data-section="connections">Connections</button>
-      <button type="button" class="settings-tab" data-section="printers">Printers</button>
-      <button type="button" class="settings-tab" data-section="profiles">Profiles</button>
+      <a class="settings-tab active" href="#settings-general" data-section="general">General</a>
+      <a class="settings-tab" href="#settings-connections" data-section="connections">Connections</a>
+      <a class="settings-tab" href="#settings-printers" data-section="printers">Printers</a>
+      <a class="settings-tab" href="#settings-profiles" data-section="profiles">Profiles</a>
     </nav>
     <div class="panel">
       <form id="settings-form">
-        <fieldset data-settings-section="general">
+        <fieldset id="settings-general" data-settings-section="general">
           <legend>Access</legend>
           <label>API token (optional)
             <div class="token-row">
@@ -258,7 +300,8 @@
         </fieldset>
 
         <fieldset data-settings-section="general">
-          <legend>Appearance</legend>
+          <legend>Default appearance</legend>
+          <p class="field-help">These colors and display options apply to every printer unless that printer has an override below.</p>
           <div class="preset-row" aria-label="Theme presets">
             <button type="button" class="preset-btn" data-preset="dark">Dark</button>
             <button type="button" class="preset-btn" data-preset="light">Light</button>
@@ -271,13 +314,13 @@
               <option value="light">Light</option>
             </select>
           </label>
-          <label>Background color
+          <label>Default background color
             <input type="color" name="background_color" value="#0b0e14">
           </label>
-          <label>Text color
+          <label>Default text color
             <input type="color" name="text_color" value="#f5f7fa">
           </label>
-          <label>Accent color
+          <label>Default accent color
             <input type="color" name="accent_color" value="#38bdf8">
           </label>
           <label>Panel opacity
@@ -304,7 +347,7 @@
           <label class="checkbox-row"><input type="checkbox" name="show_layers"> Show layers</label>
         </fieldset>
 
-        <fieldset data-settings-section="connections">
+        <fieldset id="settings-connections" data-settings-section="connections">
           <legend>OBS connection</legend>
           <label>OBS host
             <input type="text" id="obs-host" placeholder="127.0.0.1" />
@@ -331,8 +374,9 @@
           <label class="checkbox-row"><input type="checkbox" id="allow-lan"> Allow LAN access</label>
         </fieldset>
 
-        <fieldset data-settings-section="printers">
+        <fieldset id="settings-printers" data-settings-section="printers">
           <legend>Printer workspace</legend>
+          <p class="field-help">Select a printer first. Settings in the card appearance section override the defaults; they affect only the selected printer.</p>
           <div id="printer-pages" class="printer-pages" aria-label="Printers"></div>
           <select id="printer-override-select" hidden aria-hidden="true"><option value="">Select a printer</option></select>
           <div class="selected-printer">
@@ -362,25 +406,31 @@
               <option value="bambu">Bambu</option>
             </select>
           </label>
-          <label>Moonraker URL
-            <input type="text" id="printer-moonraker-url" placeholder="http://192.168.1.100:7125" />
-          </label>
-          <label>Bambu URL
-            <input type="text" id="printer-bambu-url" placeholder="http://192.168.1.120" />
-          </label>
-          <label>Access code
-            <input type="password" id="printer-access-code" placeholder="Bambu access code" />
-          </label>
-          <label>Serial number
-            <input type="text" id="printer-serial-number" placeholder="ABC123456" />
-          </label>
-          <label>Card accent
+          <div id="klipper-settings" class="connection-settings">
+            <div class="connection-heading">Klipper connection</div>
+            <label>Moonraker URL
+              <input type="text" id="printer-moonraker-url" placeholder="http://192.168.1.100:7125" />
+            </label>
+          </div>
+          <div id="bambu-settings" class="connection-settings" hidden>
+            <div class="connection-heading">Bambu LAN connection</div>
+            <label>Bambu MQTT URL
+              <input type="text" id="printer-bambu-url" placeholder="mqtt://192.168.1.120:8883" />
+            </label>
+            <label>Access code
+              <input type="password" id="printer-access-code" placeholder="Bambu access code" />
+            </label>
+            <label>Serial number
+              <input type="text" id="printer-serial-number" placeholder="ABC123456" />
+            </label>
+          </div>
+          <label>Printer accent override
             <input type="color" id="printer-accent-color" value="#38bdf8">
           </label>
-          <label>Card text color
+          <label>Printer text color override
             <input type="color" id="printer-text-color" value="#f5f7fa">
           </label>
-          <label>Card opacity
+          <label>Printer panel opacity override
             <input type="range" id="printer-panel-opacity" min="0.2" max="1" step="0.05" value="0.92">
           </label>
           <div class="checkbox-row"><input type="checkbox" id="printer-show-filename"> Show filename</div>
@@ -388,7 +438,7 @@
           <div class="checkbox-row"><input type="checkbox" id="printer-show-eta"> Show ETA</div>
           <div class="checkbox-row"><input type="checkbox" id="printer-show-temps"> Show temperatures</div>
           <div class="checkbox-row"><input type="checkbox" id="printer-show-layers"> Show layers</div>
-          <button type="button" id="clear-printer-override">Clear override for selected printer</button>
+          <button type="button" id="clear-printer-override">Use default appearance for this printer</button>
           <div class="profile-row">
             <button type="button" id="save-printer-style">Save this printer's style</button>
             <select id="apply-style-target" aria-label="Apply saved style to">
@@ -398,7 +448,7 @@
           </div>
         </fieldset>
 
-        <fieldset data-settings-section="profiles">
+        <fieldset id="settings-profiles" data-settings-section="profiles">
           <legend>Profile</legend>
           <div class="profile-row">
             <input type="text" id="profile-name" placeholder="Profile name" aria-label="Profile name" />
@@ -439,6 +489,6 @@
     </div>
   </div>
 
-  <script src="/static/admin.js"></script>
+  <script src="/static/admin.js?v=8"></script>
 </body>
 </html>

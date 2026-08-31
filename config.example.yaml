@@ -9,7 +9,7 @@ printers:
   - id: a1
     name: A1
     type: bambu
-    bambu_url: http://192.168.1.120
+    bambu_url: mqtt://192.168.1.120:8883
     access_code: "12345678"
     serial_number: "ABC123456"
     obs:

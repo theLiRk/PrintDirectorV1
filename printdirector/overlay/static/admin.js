@@ -35,6 +35,7 @@ const importProfileInput = document.getElementById('import-profile');
 const tokenInput = document.getElementById('api-token');
 const tokenSaveButton = document.getElementById('token-save');
 const printerSelect = document.getElementById('printer-override-select');
+const topPrinterSelect = document.getElementById('printer-top-select');
 const printerPages = document.getElementById('printer-pages');
 const selectedPrinterTitle = document.getElementById('selected-printer-title');
 const selectedPrinterId = document.getElementById('selected-printer-id');
@@ -50,6 +51,8 @@ const printerMoonrakerInput = document.getElementById('printer-moonraker-url');
 const printerBambuInput = document.getElementById('printer-bambu-url');
 const printerAccessCodeInput = document.getElementById('printer-access-code');
 const printerSerialInput = document.getElementById('printer-serial-number');
+const klipperSettings = document.getElementById('klipper-settings');
+const bambuSettings = document.getElementById('bambu-settings');
 const printerAccentInput = document.getElementById('printer-accent-color');
 const printerTextInput = document.getElementById('printer-text-color');
 const printerOpacityInput = document.getElementById('printer-panel-opacity');
@@ -73,6 +76,7 @@ const allowLanInput = document.getElementById('allow-lan');
 
 let currentSettings = { ...defaults };
 let currentRuntimeConfig = { printers: [], obs: {}, overlay: {}, auth: {} };
+let selectedPrinterKey = '';
 
 function activateSettingsSection(section) {
   document.querySelectorAll('.settings-tab').forEach((button) => {
@@ -80,13 +84,18 @@ function activateSettingsSection(section) {
     button.classList.toggle('active', active);
     button.setAttribute('aria-selected', String(active));
   });
-  document.querySelectorAll('[data-settings-section]').forEach((panel) => {
+
+  document.querySelectorAll('#settings-form > [data-settings-section]').forEach((panel) => {
     panel.hidden = panel.dataset.settingsSection !== section;
   });
 }
 
-document.querySelectorAll('.settings-tab').forEach((button) => {
-  button.addEventListener('click', () => activateSettingsSection(button.dataset.section));
+document.querySelector('.settings-nav').addEventListener('click', (event) => {
+  const tab = event.target.closest('.settings-tab');
+  if (!tab) return;
+  event.preventDefault();
+  activateSettingsSection(tab.dataset.section);
+  window.history.replaceState(null, '', tab.href);
 });
 activateSettingsSection('general');
 
@@ -164,7 +173,7 @@ function readForm() {
 }
 
 function populatePrinterSelect(printerIds = []) {
-  const selected = printerSelect.value;
+  const selected = selectedPrinterKey || printerSelect.value;
   printerSelect.innerHTML = '<option value="">Select a printer</option>';
   printerIds.forEach((printerId) => {
     const option = document.createElement('option');
@@ -173,7 +182,16 @@ function populatePrinterSelect(printerIds = []) {
     if (printerId === selected) option.selected = true;
     printerSelect.appendChild(option);
   });
-  if (!printerSelect.value && printerIds.length) printerSelect.value = printerIds[0];
+  selectedPrinterKey = printerSelect.value;
+  topPrinterSelect.innerHTML = '';
+  printerIds.forEach((printerId) => {
+    const option = document.createElement('option');
+    option.value = printerId;
+    const printer = (currentRuntimeConfig.printers || []).find((entry) => entry.id === printerId);
+    option.textContent = printer ? `${printer.name || printerId} (${printerId})` : printerId;
+    topPrinterSelect.appendChild(option);
+  });
+  topPrinterSelect.value = printerSelect.value;
   const printers = currentRuntimeConfig.printers || [];
   printerPages.innerHTML = '';
   printers.forEach((printer) => {
@@ -210,6 +228,7 @@ function updateSelectedPrinterUI() {
   const printer = (currentRuntimeConfig.printers || []).find((entry) => entry.id === printerSelect.value);
   selectedPrinterTitle.textContent = printer ? (printer.name || printer.id) : 'No printer selected';
   selectedPrinterId.textContent = printer ? `ID: ${printer.id}` : '';
+  topPrinterSelect.value = printerSelect.value;
   document.querySelectorAll('.printer-page-button').forEach((button) => {
     button.classList.toggle('active', button.dataset.printerId === printerSelect.value);
   });
@@ -218,6 +237,7 @@ function updateSelectedPrinterUI() {
 function syncPrinterInputsForSelectedPrinter() {
   const pid = printerSelect.value;
   if (!pid || !Array.isArray(currentRuntimeConfig.printers)) return;
+  selectedPrinterKey = pid;
   const printer = currentRuntimeConfig.printers.find((entry) => entry.id === pid) || currentRuntimeConfig.printers[0];
   if (!printer) return;
   printerIdInput.value = printer.id || '';
@@ -228,10 +248,21 @@ function syncPrinterInputsForSelectedPrinter() {
   printerBambuInput.value = printer.bambu_url || '';
   printerAccessCodeInput.value = printer.access_code || '';
   printerSerialInput.value = printer.serial_number || '';
+  updateConnectionSettings();
+}
+
+function updateConnectionSettings() {
+  const isBambu = printerTypeInput.value === 'bambu';
+  klipperSettings.hidden = isBambu;
+  bambuSettings.hidden = !isBambu;
+  printerMoonrakerInput.disabled = isBambu;
+  printerBambuInput.disabled = !isBambu;
+  printerAccessCodeInput.disabled = !isBambu;
+  printerSerialInput.disabled = !isBambu;
 }
 
 function readRuntimeConfig() {
-  const pid = printerSelect.value;
+  const pid = selectedPrinterKey || printerSelect.value;
   let printers = Array.isArray(currentRuntimeConfig.printers)
     ? currentRuntimeConfig.printers.map((printer) => ({ ...printer }))
     : [];
@@ -243,10 +274,10 @@ function readRuntimeConfig() {
         id: printerIdInput.value.trim() || pid,
         name: printerNameInput.value.trim() || printers[index].name || pid,
         type: printerTypeInput.value || printers[index].type || 'klipper',
-        moonraker_url: printerMoonrakerInput.value.trim() || null,
-        bambu_url: printerBambuInput.value.trim() || null,
-        access_code: printerAccessCodeInput.value.trim() || null,
-        serial_number: printerSerialInput.value.trim() || null,
+        moonraker_url: printerTypeInput.value === 'klipper' ? (printerMoonrakerInput.value.trim() || null) : null,
+        bambu_url: printerTypeInput.value === 'bambu' ? (printerBambuInput.value.trim() || null) : null,
+        access_code: printerTypeInput.value === 'bambu' ? (printerAccessCodeInput.value.trim() || null) : null,
+        serial_number: printerTypeInput.value === 'bambu' ? (printerSerialInput.value.trim() || null) : null,
         obs: { ...(printers[index].obs || {}), scene: printerSceneInput.value.trim() || printers[index].obs?.scene || 'Printer' }
       };
     } else {
@@ -254,10 +285,10 @@ function readRuntimeConfig() {
         id: printerIdInput.value.trim() || pid,
         name: printerNameInput.value.trim() || pid,
         type: printerTypeInput.value || 'klipper',
-        moonraker_url: printerMoonrakerInput.value.trim() || null,
-        bambu_url: printerBambuInput.value.trim() || null,
-        access_code: printerAccessCodeInput.value.trim() || null,
-        serial_number: printerSerialInput.value.trim() || null,
+        moonraker_url: printerTypeInput.value === 'klipper' ? (printerMoonrakerInput.value.trim() || null) : null,
+        bambu_url: printerTypeInput.value === 'bambu' ? (printerBambuInput.value.trim() || null) : null,
+        access_code: printerTypeInput.value === 'bambu' ? (printerAccessCodeInput.value.trim() || null) : null,
+        serial_number: printerTypeInput.value === 'bambu' ? (printerSerialInput.value.trim() || null) : null,
         obs: { scene: printerSceneInput.value.trim() || 'Printer' }
       });
     }
@@ -284,6 +315,29 @@ function readRuntimeConfig() {
   };
 }
 
+function validatePrinters(printers) {
+  const ids = new Set();
+  for (const printer of printers) {
+    const id = String(printer.id || '').trim();
+    const label = printer.name || id || 'Unnamed printer';
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return `${label}: ID may only contain letters, numbers, hyphens, and underscores.`;
+    }
+    if (ids.has(id)) {
+      return `Duplicate printer ID: ${id}.`;
+    }
+    ids.add(id);
+    if (printer.type === 'bambu') {
+      if (!printer.bambu_url) return `${label}: Bambu URL is required.`;
+      if (!printer.access_code) return `${label}: Bambu access code is required.`;
+      if (!printer.serial_number) return `${label}: Bambu serial number is required.`;
+    } else if (!printer.moonraker_url) {
+      return `${label}: Moonraker URL is required.`;
+    }
+  }
+  return null;
+}
+
 function applyRuntimeConfig(config) {
   currentRuntimeConfig = {
     obs: config.obs || {},
@@ -302,7 +356,9 @@ function applyRuntimeConfig(config) {
   overlayPortInput.value = currentRuntimeConfig.overlay.port || 8765;
   allowLanInput.checked = Boolean(currentRuntimeConfig.overlay.allow_lan);
   populatePrinterSelect(currentRuntimeConfig.printers.map((printer) => printer.id));
-  if (!printerSelect.value && currentRuntimeConfig.printers.length) printerSelect.value = currentRuntimeConfig.printers[0].id;
+  if (!currentRuntimeConfig.printers.some((printer) => printer.id === selectedPrinterKey)) {
+    selectedPrinterKey = printerSelect.value;
+  }
   syncPrinterInputsForSelectedPrinter();
   updateSelectedPrinterUI();
 }
@@ -315,20 +371,35 @@ async function loadRuntimeConfig() {
 }
 
 async function saveRuntimeConfig() {
-  const payload = readRuntimeConfig();
-  const response = await fetch('/api/system-config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    const error = await response.text();
-    setStatus(`System config save failed: ${error}`, false);
-    return;
+  try {
+    const payload = readRuntimeConfig();
+    const validationError = validatePrinters(payload.printers);
+    if (validationError) {
+      setStatus(`System config save failed: ${validationError}`, false);
+      return;
+    }
+    const response = await fetch('/api/system-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.text();
+      let detail = error;
+      try {
+        detail = JSON.parse(error).detail || error;
+      } catch {
+        // Keep the server response when it is not JSON.
+      }
+      setStatus(`System config save failed: ${detail}`, false);
+      return;
+    }
+    const config = await response.json();
+    applyRuntimeConfig(config);
+    setStatus('System configuration saved.', true, stamp());
+  } catch (error) {
+    setStatus(`System config save failed: ${error.message || 'Unable to contact PrintDirector'}`, false);
   }
-  const config = await response.json();
-  applyRuntimeConfig(config);
-  setStatus('System configuration saved.', true, stamp());
 }
 
 function applyPrinterOverrideControls(settings, pid) {
@@ -342,6 +413,13 @@ function applyPrinterOverrideControls(settings, pid) {
   printerShowEta.checked = override.show_eta ?? settings.show_eta ?? defaults.show_eta;
   printerShowTemps.checked = override.show_temps ?? settings.show_temps ?? defaults.show_temps;
   printerShowLayers.checked = override.show_layers ?? settings.show_layers ?? defaults.show_layers;
+  applySettings(getSelectedPreviewSettings());
+}
+
+function getSelectedPreviewSettings() {
+  const pid = printerSelect.value;
+  const override = pid ? (currentSettings.printer_overrides || {})[pid] || {} : {};
+  return { ...currentSettings, ...override };
 }
 
 function readPrinterOverride() {
@@ -371,6 +449,14 @@ function applySettings(settings) {
   const panelOpacity = Number(settings.panel_opacity ?? defaults.panel_opacity);
   const fontFamily = settings.font_family || defaults.font_family;
   const fontScale = Number(settings.font_scale ?? defaults.font_scale);
+  const selectedPrinter = (currentRuntimeConfig.printers || []).find(
+    (printer) => printer.id === printerSelect.value
+  );
+  const previewName = settings.label_override
+    || selectedPrinter?.name
+    || 'Printer preview';
+  const previewNameEl = root.querySelector('.preview-header .name');
+  if (previewNameEl) previewNameEl.textContent = previewName;
 
   root.style.setProperty('--accent', accent);
   root.style.background = theme === 'light' ? `rgba(255, 255, 255, ${panelOpacity})` : `rgba(13, 18, 28, ${panelOpacity})`;
@@ -421,7 +507,7 @@ function populateForm(settings) {
   });
 
   if (settings.printer_ids) populatePrinterSelect(settings.printer_ids);
-  const selectedPrinter = printerSelect.value || (settings.printer_ids && settings.printer_ids[0]) || '';
+  const selectedPrinter = printerSelect.value;
   if (selectedPrinter) {
     printerSelect.value = selectedPrinter;
     applyPrinterOverrideControls(currentSettings, selectedPrinter);
@@ -484,6 +570,7 @@ addPrinterButton.addEventListener('click', () => {
   currentRuntimeConfig.printers = [...(currentRuntimeConfig.printers || []), printer];
   populatePrinterSelect(currentRuntimeConfig.printers.map((entry) => entry.id));
   printerSelect.value = nextId;
+  selectedPrinterKey = nextId;
   syncPrinterInputsForSelectedPrinter();
   updateSelectedPrinterUI();
   setStatus(`Added ${nextId}. Save system config to keep it.`, true, stamp());
@@ -532,32 +619,98 @@ removePrinterButton.addEventListener('click', () => {
   currentRuntimeConfig.printers = remaining;
   populatePrinterSelect(currentRuntimeConfig.printers.map((entry) => entry.id));
   printerSelect.value = currentRuntimeConfig.printers[0].id;
+  selectedPrinterKey = printerSelect.value;
   syncPrinterInputsForSelectedPrinter();
   setStatus(`Removed ${pid}. Save system config to keep it.`, true, stamp());
 });
 
 form.addEventListener('input', () => {
   const values = readForm();
-  populateForm(values);
+  currentSettings = {
+    ...currentSettings,
+    ...values,
+    printer_overrides: currentSettings.printer_overrides || {}
+  };
+  applySettings({
+    ...currentSettings,
+    ...values
+  });
   setStatus('Preview updated', true, stamp());
+});
+
+[
+  printerLabelInput,
+  printerAccentInput,
+  printerTextInput,
+  printerOpacityInput,
+  printerShowFilename,
+  printerShowState,
+  printerShowEta,
+  printerShowTemps,
+  printerShowLayers
+].forEach((input) => {
+  const updatePreview = () => {
+    const selected = readPrinterOverride();
+    if (selected) applySettings({ ...getSelectedPreviewSettings(), ...selected.override });
+  };
+  input.addEventListener('input', updatePreview);
+  input.addEventListener('change', updatePreview);
 });
 
 printerSelect.addEventListener('change', () => {
   const selected = printerSelect.value;
   if (!selected) return;
+  selectedPrinterKey = selected;
   applyPrinterOverrideControls(currentSettings, selected);
   syncPrinterInputsForSelectedPrinter();
   updateSelectedPrinterUI();
 });
 
-savePrinterStyleButton.addEventListener('click', () => {
-  const selected = readPrinterOverride();
-  if (!selected) {
-    setStatus('Select a printer before saving its style.', false);
-    return;
+topPrinterSelect.addEventListener('change', () => {
+  printerSelect.value = topPrinterSelect.value;
+  selectedPrinterKey = printerSelect.value;
+  syncPrinterInputsForSelectedPrinter();
+  applyPrinterOverrideControls(currentSettings, printerSelect.value);
+  updateSelectedPrinterUI();
+});
+
+printerTypeInput.addEventListener('change', updateConnectionSettings);
+
+savePrinterStyleButton.addEventListener('click', async () => {
+  try {
+    const selected = readPrinterOverride();
+    if (!selected) {
+      setStatus('Select a printer before saving its style.', false);
+      return;
+    }
+    const overrideMap = { ...(currentSettings.printer_overrides || {}) };
+    overrideMap[selected.pid] = selected.override;
+    currentSettings.printer_overrides = overrideMap;
+    localStorage.setItem('printdirector-printer-style', JSON.stringify(selected.override));
+    setStatus(`Saving style for ${selected.pid}…`);
+    const response = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(buildPayload())
+    });
+    if (!response.ok) {
+      const error = await response.text();
+      let detail = error;
+      try {
+        detail = JSON.parse(error).detail || error;
+      } catch {
+        // Keep the server response when it is not JSON.
+      }
+      setStatus(`Style save failed: ${detail}`, false);
+      return;
+    }
+    const settings = await response.json();
+    currentSettings = { ...defaults, ...settings, printer_overrides: settings.printer_overrides || {} };
+    applyPrinterOverrideControls(currentSettings, selected.pid);
+    setStatus(`Saved style for ${selected.pid}.`, true, stamp());
+  } catch (error) {
+    setStatus(`Style save failed: ${error.message || 'Unable to contact PrintDirector'}`, false);
   }
-  localStorage.setItem('printdirector-printer-style', JSON.stringify(selected.override));
-  setStatus(`Saved style from ${selected.pid}.`, true, stamp());
 });
 
 applyPrinterStyleButton.addEventListener('click', () => {
@@ -668,23 +821,35 @@ importProfileInput.addEventListener('change', (event) => {
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const payload = buildPayload();
-  setStatus('Saving overlay settings…');
-  const response = await fetch('/api/settings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(payload)
-  });
+  try {
+    // Global saves must preserve overrides without turning the selected printer
+    // into an override just because its controls currently show fallback values.
+    const payload = readForm();
+    setStatus('Saving overlay settings…');
+    const response = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(payload)
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    setStatus(`Save failed: ${error}`, false);
-    return;
+    if (!response.ok) {
+      const error = await response.text();
+      let detail = error;
+      try {
+        detail = JSON.parse(error).detail || error;
+      } catch {
+        // Keep the server response when it is not JSON.
+      }
+      setStatus(`Save failed: ${detail}`, false);
+      return;
+    }
+
+    const settings = await response.json();
+    populateForm({ ...defaults, ...settings, printer_overrides: settings.printer_overrides || {} });
+    setStatus('Settings saved.', true, stamp());
+  } catch (error) {
+    setStatus(`Save failed: ${error.message || 'Unable to contact PrintDirector'}`, false);
   }
-
-  const settings = await response.json();
-  populateForm({ ...defaults, ...settings, printer_overrides: settings.printer_overrides || {} });
-  setStatus('Settings saved.', true, stamp());
 });
 
 resetButton.addEventListener('click', () => {

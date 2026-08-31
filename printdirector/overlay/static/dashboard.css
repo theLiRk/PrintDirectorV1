@@ -1,64 +1,173 @@
 body.dashboard-page {
     min-height: 100vh;
-    padding: 24px;
+    padding: 40px clamp(18px, 4vw, 64px) 64px;
     background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 34%),
-        linear-gradient(180deg, #0f172a 0%, #020617 100%) !important;
+        radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.16), transparent 28%),
+        linear-gradient(145deg, #0f172a 0%, #020617 72%);
     color: #e2e8f0;
     font-family: system-ui, sans-serif;
 }
 
-body.dashboard-page.dashboard-light {
-    background:
-        radial-gradient(circle at top left, rgba(14, 165, 233, 0.12), transparent 34%),
-        linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%) !important;
-    color: #0f172a;
+.dashboard-header,
+.control-panel,
+.section-header,
+.dashboard-page #overview {
+    width: min(1400px, 100%);
+    margin-right: auto;
+    margin-left: auto;
 }
 
-.dashboard-page header {
+.dashboard-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.eyebrow {
+    margin: 0 0 8px;
+    color: #7dd3fc;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+}
+
+.dashboard-page h1,
+.dashboard-page h2 {
+    margin: 0;
+}
+
+.dashboard-page h1 {
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    letter-spacing: -0.04em;
+}
+
+.dashboard-page h2 {
+    font-size: 1.45rem;
+}
+
+.subtitle {
+    margin: 10px 0 0;
+    color: #94a3b8;
+}
+
+.dashboard-status {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 10px;
+    padding: 12px 16px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.72);
+    color: #cbd5e1;
+    font-size: 0.85rem;
 }
 
-.dashboard-page nav {
+.status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #fbbf24;
+    box-shadow: 0 0 14px currentColor;
+}
+
+.control-panel {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+    margin-top: 32px;
+    padding: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.78);
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
     gap: 8px;
-    margin: 16px 0;
+    flex-wrap: wrap;
+}
+
+.control-label {
+    margin-right: 4px;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .dashboard-page button,
-.dashboard-page nav a {
+.dashboard-links a {
     display: inline-block;
-    padding: 10px 14px;
+    padding: 9px 13px;
     border: 1px solid #475569;
-    border-radius: 8px;
+    border-radius: 9px;
     background: #1e293b;
-    color: white;
+    color: #f8fafc;
     font: inherit;
+    font-size: 0.86rem;
     text-decoration: none;
     cursor: pointer;
 }
 
-.dashboard-page nav a[href="/preview"] {
+.dashboard-page button:hover,
+.dashboard-links a:hover {
+    border-color: #7dd3fc;
+    background: #0369a1;
+}
+
+.dashboard-links {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.dashboard-links a:first-child {
     border-color: #0f766e;
     background: #0f766e;
 }
 
-.dashboard-page button:hover,
-.dashboard-page nav a:hover {
-    background: #0ea5e9;
+.section-header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 46px;
+    margin-bottom: 16px;
 }
 
-@media (max-width: 640px) {
+#last-refresh {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.dashboard-page #overview {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.dashboard-page #overview .card {
+    min-width: 0;
+    padding: 18px;
+    border-color: rgba(56, 189, 248, 0.35);
+    background: rgba(15, 23, 42, 0.84);
+}
+
+@media (max-width: 800px) {
     body.dashboard-page {
-        padding: 16px;
+        padding: 24px 16px 40px;
     }
 
-    .dashboard-page header {
+    .dashboard-header,
+    .control-panel,
+    .section-header {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .dashboard-links {
+        margin-left: 0;
     }
 }
