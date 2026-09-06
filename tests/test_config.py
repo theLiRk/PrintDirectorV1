@@ -50,6 +50,9 @@ def test_bambu_status_parses_common_payload():
     assert adapter.status.state.value == 'printing'
     assert adapter.status.filename == 'demo.gcode'
     assert adapter.status.hotend_temperature == 210
+    assert adapter.status.hotend_target == 220
+    assert adapter.status.bed_target == 60
+    assert adapter.status.elapsed_time == 120
 
 
 def test_bambu_status_retains_fields_from_incremental_reports():
@@ -73,3 +76,9 @@ def test_bambu_status_merges_nested_msg_reports():
     assert adapter.status.state.value == 'printing'
     assert adapter.status.progress == 0.1
     assert adapter.status.hotend_temperature == 200
+
+
+def test_bambu_mc_remaining_time_is_converted_from_minutes_to_seconds():
+    adapter = BambuAdapter('a1', 'A1', 'mqtt://192.168.1.120:8883')
+    adapter._apply_payload({'print': {'gcode_state': 'RUNNING', 'mc_remaining_time': 120}})
+    assert adapter.status.estimated_remaining == 7200
