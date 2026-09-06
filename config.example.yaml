@@ -77,6 +77,24 @@ notifications:
     - obs_restarted
     - stream_recovery_failed
 
+mqtt:
+  enabled: false
+  host: 127.0.0.1
+  port: 1883
+  username: null
+  password_env: PRINTDIRECTOR_MQTT_PASSWORD
+  client_id: printdirector
+  topic_prefix: printdirector
+  discovery_enabled: true
+  discovery_prefix: homeassistant
+  qos: 0
+  retain: true
+  keepalive: 60
+  heartbeat_interval: 30
+  min_publish_interval: 2
+  tls_enabled: false
+  tls_insecure: false
+
 overlay:
   host: 127.0.0.1
   port: 8765
