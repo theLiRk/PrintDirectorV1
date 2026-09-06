@@ -2,117 +2,188 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>PrintDirector Settings</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PrintDirector Settings</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/dashboard.css">
-  <link rel="stylesheet" href="/static/admin.css">
-  <style>
-    .settings-toolbar{display:flex;align-items:end;justify-content:space-between;gap:16px;max-width:1440px;margin:0 auto 20px;padding:14px 16px}
-    .settings-toolbar label{width:min(360px,100%)}
-    .settings-layout{display:grid;grid-template-columns:minmax(190px,230px) minmax(420px,620px) minmax(300px,1fr);gap:24px;max-width:1440px;margin:0 auto;align-items:start}
-    .settings-nav{position:sticky;top:24px;display:grid;gap:6px;padding:10px}
-    .settings-nav-title{padding:4px 10px 10px;color:#94a3b8;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
-    .panel{padding:20px}.settings-layout form{display:grid;gap:18px}
-    fieldset{border:1px solid rgba(148,163,184,.22);border-radius:12px;padding:16px 14px 12px;margin:0;display:grid;gap:12px}
-    legend{color:#cbd5e1;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:.72rem;padding:0 8px}
-    label{display:grid;gap:8px;color:#dfe7f1}.field-help{margin:-4px 0 2px;color:#94a3b8;font-size:.88rem}
-    .checkbox-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;background:rgba(15,23,42,.38)}
-    .checkbox-row input{flex:0 0 auto}.profile-row,.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.profile-row>*{flex:1 1 145px}
-    .printer-pages{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.printer-page-button{display:grid;gap:2px;text-align:left}.printer-page-button small{color:#94a3b8}
-    .selected-printer{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.selected-printer h3{margin:0}.selected-printer span{color:#94a3b8;font-size:.82rem}
-    .connection-settings{display:grid;gap:12px}.connection-heading{color:#7dd3fc;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-    .token-row{display:flex;gap:8px}.token-row input{flex:1}.preset-row{display:flex;gap:8px;flex-wrap:wrap}.status{min-height:24px;color:#86efac}
-    .sticky-actions{position:sticky;bottom:16px;z-index:2;padding:12px;border:1px solid rgba(148,163,184,.28);border-radius:12px;background:rgba(2,8,23,.96)}
-    .preview{min-height:380px;display:flex;align-items:center;justify-content:center}.preview-card{width:min(100%,440px);background:rgba(13,18,28,.9);border:1px solid rgba(148,163,184,.25);border-radius:16px;padding:18px}.preview-header,.preview-card .meta,.preview-actions{display:flex;justify-content:space-between;gap:12px}.preview-card .bar{height:10px;background:rgba(148,163,184,.18);border-radius:999px;overflow:hidden;margin:12px 0}.preview-card .bar i{display:block;height:100%;background:#38bdf8}.preview-card .file{margin-top:10px}.preview-actions{margin-top:10px;color:#94a3b8;font-size:.8rem}
-    .ops-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ops-result{padding:10px 12px;border-radius:9px;background:rgba(15,23,42,.55);color:#cbd5e1;white-space:pre-wrap;font-size:.85rem}
-    @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;display:flex;overflow-x:auto}.settings-nav-title{display:none}.ops-grid{grid-template-columns:1fr}.settings-toolbar{align-items:stretch;flex-direction:column}}
-  </style>
+  <link rel="stylesheet" href="/static/admin.css?v=9">
 </head>
 <body class="settings-page">
-  <header><h1>PrintDirector Settings</h1><a href="/">Back to dashboard</a></header>
+  <header class="settings-header">
+    <div>
+      <p class="eyebrow">PRINTDIRECTOR</p>
+      <h1>Settings</h1>
+      <p class="settings-subtitle">Global configuration, OBS automation, and printer-specific setup.</p>
+    </div>
+    <a class="back-link" href="/">Back to dashboard</a>
+  </header>
 
-  <section class="panel settings-toolbar" aria-label="Active printer">
-    <label>Editing printer<select id="printer-top-select"><option value="">Loading printers…</option></select></label>
-    <span><strong>Printer-specific settings</strong><br><small>Choose a printer before editing its connection or overlay style.</small></span>
-  </section>
-
-  <div class="settings-layout">
-    <nav class="panel settings-nav" aria-label="Settings sections">
-      <div class="settings-nav-title">Settings</div>
+  <div class="settings-shell">
+    <nav id="settings-nav" class="settings-nav panel" aria-label="Settings sections">
+      <span class="settings-nav-title">Settings</span>
       <a class="settings-tab active" href="#settings-general" data-section="general">General</a>
-      <a class="settings-tab" href="#settings-connections" data-section="connections">Connections</a>
-      <a class="settings-tab" href="#settings-operations" data-section="operations">Operations</a>
+      <a class="settings-tab" href="#settings-connections" data-section="connections">OBS &amp; network</a>
+      <a class="settings-tab" href="#settings-operations" data-section="operations">Automation</a>
       <a class="settings-tab" href="#settings-printers" data-section="printers">Printers</a>
-      <a class="settings-tab" href="#settings-profiles" data-section="profiles">Profiles</a>
     </nav>
 
-    <div class="panel">
-      <form id="settings-form">
-        <fieldset id="settings-general" data-settings-section="general">
-          <legend>Access</legend>
-          <label>API token (optional)<div class="token-row"><input id="api-token" type="password" placeholder="Bearer token for shared LAN"><button type="button" id="token-save">Store</button></div></label>
+    <main class="settings-content">
+      <section id="settings-general" class="settings-section panel" data-settings-section="general">
+        <div class="section-heading">
+          <div><p class="eyebrow">GENERAL</p><h2>Appearance &amp; access</h2></div>
+          <p>Defaults here apply to every printer unless that printer has a custom overlay appearance.</p>
+        </div>
+
+        <fieldset>
+          <legend>Local access</legend>
+          <p class="field-help">Optional bearer token used by this browser when PrintDirector API authentication is enabled.</p>
+          <label>API token
+            <div class="inline-input">
+              <input id="api-token" type="password" placeholder="Optional bearer token">
+              <button type="button" id="store-api-token">Store in browser</button>
+            </div>
+          </label>
         </fieldset>
 
-        <fieldset data-settings-section="general">
-          <legend>Default appearance</legend>
-          <p class="field-help">These options apply to every printer unless that printer has an override.</p>
-          <div class="preset-row"><button type="button" class="preset-btn" data-preset="dark">Dark</button><button type="button" class="preset-btn" data-preset="light">Light</button><button type="button" class="preset-btn" data-preset="mint">Mint</button><button type="button" class="preset-btn" data-preset="sunset">Sunset</button></div>
-          <label>Theme<select name="theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
-          <label>Default background color<input type="color" name="background_color" value="#0b0e14"></label>
-          <label>Default text color<input type="color" name="text_color" value="#f5f7fa"></label>
-          <label>Default accent color<input type="color" name="accent_color" value="#38bdf8"></label>
-          <label>Panel opacity<input type="range" name="panel_opacity" min="0.2" max="1" step="0.05"></label>
-          <label>Font family<select name="font_family"><option value="system-ui">System UI</option><option value="Cinzel, serif">Cinzel</option><option value="Georgia, serif">Georgia</option></select></label>
-          <label>Font scale<input type="range" name="font_scale" min="0.8" max="1.5" step="0.05"></label>
+        <div class="appearance-workspace">
+          <div class="appearance-fields">
+            <fieldset>
+              <legend>Default overlay appearance</legend>
+              <div class="preset-buttons" aria-label="Built-in appearance presets">
+                <button type="button" data-appearance-preset="dark">Dark</button>
+                <button type="button" data-appearance-preset="light">Light</button>
+                <button type="button" data-appearance-preset="mint">Mint</button>
+                <button type="button" data-appearance-preset="sunset">Sunset</button>
+              </div>
+              <div class="field-grid two-column">
+                <label>Theme
+                  <select id="appearance-theme" data-appearance-control>
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                  </select>
+                </label>
+                <label>Font
+                  <select id="appearance-font" data-appearance-control>
+                    <option value="system-ui">System UI</option>
+                    <option value="Cinzel, serif">Cinzel</option>
+                    <option value="Georgia, serif">Georgia</option>
+                  </select>
+                </label>
+                <label>Background <input id="appearance-background" data-appearance-control type="color" value="#0b0e14"></label>
+                <label>Text <input id="appearance-text" data-appearance-control type="color" value="#f5f7fa"></label>
+                <label>Accent <input id="appearance-accent" data-appearance-control type="color" value="#38bdf8"></label>
+                <label>Panel opacity <input id="appearance-opacity" data-appearance-control type="range" min="0.2" max="1" step="0.05" value="0.92"></label>
+                <label>Font scale <input id="appearance-scale" data-appearance-control type="range" min="0.8" max="1.5" step="0.05" value="1"></label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Default overlay fields</legend>
+              <div class="toggle-grid">
+                <label class="toggle-row"><input id="appearance-show-filename" data-appearance-control type="checkbox"> Filename</label>
+                <label class="toggle-row"><input id="appearance-show-state" data-appearance-control type="checkbox"> State</label>
+                <label class="toggle-row"><input id="appearance-show-eta" data-appearance-control type="checkbox"> ETA</label>
+                <label class="toggle-row"><input id="appearance-show-temps" data-appearance-control type="checkbox"> Temperatures</label>
+                <label class="toggle-row"><input id="appearance-show-layers" data-appearance-control type="checkbox"> Layers</label>
+              </div>
+            </fieldset>
+          </div>
+
+          <aside class="preview-panel">
+            <span class="preview-label">Live preview</span>
+            <div class="preview-card" id="global-preview-card">
+              <div class="preview-header"><strong data-preview-name>Jötunn</strong><span data-preview-state>printing</span></div>
+              <div class="preview-file" data-preview-file>MyModel.gcode</div>
+              <div class="preview-bar"><i style="width:62%"></i></div>
+              <div class="preview-meta"><span>62.0%</span><span data-preview-eta>ETA 00:17</span></div>
+              <div class="preview-meta" data-preview-temps><span>Hotend 205° / 210°</span><span>Bed 60° / 65°</span></div>
+              <div class="preview-footer" data-preview-layers>Layer 32 / 51</div>
+            </div>
+          </aside>
+        </div>
+
+        <fieldset>
+          <legend>Appearance presets</legend>
+          <p class="field-help">Presets contain global appearance only. Printer connection and OBS settings are never included.</p>
+          <div class="field-grid preset-manager">
+            <input id="appearance-preset-name" type="text" placeholder="Preset name" aria-label="Preset name">
+            <button type="button" id="save-appearance-preset">Save preset</button>
+            <select id="appearance-presets-list" aria-label="Saved appearance presets"><option value="">Choose a saved preset</option></select>
+            <button type="button" id="load-appearance-preset">Load</button>
+            <button type="button" id="delete-appearance-preset">Delete</button>
+            <button type="button" id="export-appearance-preset">Export JSON</button>
+            <label class="file-button">Import JSON <input id="import-appearance-preset" type="file" accept="application/json"></label>
+          </div>
         </fieldset>
 
-        <fieldset data-settings-section="general">
-          <legend>Overlay fields</legend>
-          <label class="checkbox-row"><input type="checkbox" name="show_filename"> Show filename</label>
-          <label class="checkbox-row"><input type="checkbox" name="show_state"> Show state</label>
-          <label class="checkbox-row"><input type="checkbox" name="show_eta"> Show ETA</label>
-          <label class="checkbox-row"><input type="checkbox" name="show_temps"> Show temperatures</label>
-          <label class="checkbox-row"><input type="checkbox" name="show_layers"> Show layers</label>
+        <div class="section-actions">
+          <button type="button" class="primary" id="save-appearance">Save appearance</button>
+          <button type="button" id="reset-appearance">Reset preview to defaults</button>
+        </div>
+      </section>
+
+      <section id="settings-connections" class="settings-section panel" data-settings-section="connections" hidden>
+        <div class="section-heading">
+          <div><p class="eyebrow">CONNECTIONS</p><h2>OBS &amp; local network</h2></div>
+          <p>These are global service connections. Individual printer connections are configured under Printers.</p>
+        </div>
+
+        <fieldset>
+          <legend>OBS WebSocket</legend>
+          <div class="field-grid two-column">
+            <label>OBS host <input type="text" id="obs-host" placeholder="127.0.0.1"></label>
+            <label>OBS port <input type="number" id="obs-port" min="1" max="65535" placeholder="4455"></label>
+            <label>OBS password environment variable <input type="text" id="obs-password-env" placeholder="OBS_WEBSOCKET_PASSWORD"></label>
+            <label>OBS password <input type="password" id="obs-password" placeholder="Optional local secret"></label>
+          </div>
         </fieldset>
 
-        <fieldset id="settings-connections" data-settings-section="connections">
-          <legend>OBS connection</legend>
-          <label>OBS host<input type="text" id="obs-host" placeholder="127.0.0.1"></label>
-          <label>OBS port<input type="number" id="obs-port" min="1" max="65535" placeholder="4455"></label>
-          <label>OBS password env name<input type="text" id="obs-password-env" placeholder="OBS_WEBSOCKET_PASSWORD"></label>
-          <label>OBS password value<input type="password" id="obs-password" placeholder="Optional local secret"></label>
-          <label>Expected scene collection (optional)<input type="text" id="obs-scene-collection" placeholder="PrintDirector"></label>
-          <label>Expected OBS profile (optional)<input type="text" id="obs-profile" placeholder="Streaming"></label>
+        <fieldset>
+          <legend>Dashboard &amp; overlay server</legend>
+          <div class="field-grid two-column">
+            <label>Bind host <input type="text" id="overlay-host" placeholder="127.0.0.1"></label>
+            <label>Port <input type="number" id="overlay-port" min="1" max="65535" placeholder="8765"></label>
+          </div>
+          <label class="toggle-row"><input type="checkbox" id="allow-lan"> Allow LAN access</label>
         </fieldset>
 
-        <fieldset data-settings-section="connections">
-          <legend>Local network</legend>
-          <label>Overlay host<input type="text" id="overlay-host" placeholder="127.0.0.1"></label>
-          <label>Overlay port<input type="number" id="overlay-port" min="1" max="65535" placeholder="8765"></label>
-          <label class="checkbox-row"><input type="checkbox" id="allow-lan"> Allow LAN access</label>
-        </fieldset>
+        <div class="section-actions"><button type="button" class="primary" id="save-connections">Save connection settings</button></div>
+      </section>
 
-        <fieldset id="settings-operations" data-settings-section="operations">
+      <section id="settings-operations" class="settings-section panel" data-settings-section="operations" hidden>
+        <div class="section-heading">
+          <div><p class="eyebrow">AUTOMATION</p><h2>Director &amp; unattended recovery</h2></div>
+          <p>Controls how PrintDirector selects scenes, manages OBS, detects stale telemetry, and sends notifications.</p>
+        </div>
+
+        <fieldset>
           <legend>Director automation</legend>
-          <label class="checkbox-row"><input type="checkbox" id="director-enabled"> Automatic scene director enabled</label>
-          <div class="ops-grid">
+          <label class="toggle-row"><input type="checkbox" id="director-enabled"> Automatic scene director enabled</label>
+          <div class="field-grid two-column">
             <label>Rotation interval (seconds)<input type="number" id="director-rotation" min="1" step="1"></label>
             <label>Near-complete threshold (0–1)<input type="number" id="director-near-complete" min="0" max="1" step="0.01"></label>
             <label>Idle scene<input type="text" id="director-idle-scene"></label>
             <label>Overview scene<input type="text" id="director-overview-scene"></label>
           </div>
-          <label class="checkbox-row"><input type="checkbox" id="director-auto-start"> Automatically start stream when a printer becomes active</label>
-          <label class="checkbox-row"><input type="checkbox" id="director-auto-stop"> Automatically stop stream when no printers are active</label>
+          <label class="toggle-row"><input type="checkbox" id="director-auto-start"> Automatically start stream when a printer becomes active</label>
+          <label class="toggle-row"><input type="checkbox" id="director-auto-stop"> Automatically stop stream when no printers are active</label>
           <label>Stream stop delay (seconds)<input type="number" id="director-stop-delay" min="0" step="1"></label>
         </fieldset>
 
-        <fieldset data-settings-section="operations">
+        <fieldset>
+          <legend>OBS environment</legend>
+          <div class="field-grid two-column">
+            <label>Expected scene collection (optional)<input type="text" id="obs-scene-collection" placeholder="PrintDirector"></label>
+            <label>Expected OBS profile (optional)<input type="text" id="obs-profile" placeholder="Streaming"></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
           <legend>OBS lifecycle</legend>
-          <label class="checkbox-row"><input type="checkbox" id="obs-auto-launch"> Start OBS automatically when it is not running</label>
+          <label class="toggle-row"><input type="checkbox" id="obs-auto-launch"> Start OBS automatically when it is not running</label>
           <label>OBS executable (blank = auto-detect)<input type="text" id="obs-executable" placeholder="C:\Program Files\obs-studio\bin\64bit\obs64.exe"></label>
-          <label class="checkbox-row"><input type="checkbox" id="obs-minimize"> Launch OBS minimized to tray</label>
-          <div class="ops-grid">
+          <label class="toggle-row"><input type="checkbox" id="obs-minimize"> Launch OBS minimized to tray</label>
+          <div class="field-grid two-column">
             <label>Process check interval (s)<input type="number" id="obs-process-check" min="1" step="1"></label>
             <label>Launch cooldown (s)<input type="number" id="obs-launch-cooldown" min="5" step="1"></label>
             <label>WebSocket reconnect interval (s)<input type="number" id="obs-reconnect-interval" min="0" step="1"></label>
@@ -120,87 +191,183 @@
           </div>
         </fieldset>
 
-        <fieldset data-settings-section="operations">
-          <legend>OBS preflight & recovery</legend>
-          <label class="checkbox-row"><input type="checkbox" id="obs-preflight-enabled"> Validate OBS scenes and stream service</label>
-          <div class="ops-grid">
+        <fieldset>
+          <legend>OBS preflight &amp; recovery</legend>
+          <label class="toggle-row"><input type="checkbox" id="obs-preflight-enabled"> Validate OBS scenes and stream service</label>
+          <div class="field-grid two-column">
             <label>Preflight interval (s)<input type="number" id="obs-preflight-interval" min="5" step="1"></label>
             <label>Startup ready timeout (s)<input type="number" id="obs-startup-timeout" min="5" step="1"></label>
             <label>Reconnect considered stuck after (s)<input type="number" id="obs-reconnect-stuck" min="15" step="1"></label>
             <label>Stream recovery cooldown (s)<input type="number" id="obs-recovery-cooldown" min="30" step="1"></label>
           </div>
-          <label class="checkbox-row"><input type="checkbox" id="obs-stream-recovery"> Attempt one controlled stream stop/start if reconnecting is stuck</label>
-          <label class="checkbox-row"><input type="checkbox" id="obs-restart-on-failure"> Restart the OBS process if stream recovery fails (aggressive, opt-in)</label>
+          <label class="toggle-row"><input type="checkbox" id="obs-stream-recovery"> Attempt one controlled stream stop/start if reconnecting is stuck</label>
+          <label class="toggle-row danger-toggle"><input type="checkbox" id="obs-restart-on-failure"> Restart the OBS process if stream recovery fails (aggressive, opt-in)</label>
           <label>OBS restart cooldown (s)<input type="number" id="obs-restart-cooldown" min="60" step="1"></label>
-          <div class="actions"><button type="button" id="test-obs-preflight">Validate OBS now</button></div>
-          <div id="obs-preflight-result" class="ops-result">Not checked yet.</div>
+          <div class="section-actions"><button type="button" id="test-obs-preflight">Validate OBS now</button></div>
+          <pre id="obs-preflight-result" class="result-box">Not checked yet.</pre>
         </fieldset>
 
-        <fieldset data-settings-section="operations">
+        <fieldset>
           <legend>Telemetry monitoring</legend>
-          <div class="ops-grid">
+          <div class="field-grid three-column">
             <label>Mark telemetry stale after (s)<input type="number" id="monitor-stale-after" min="5" step="1"></label>
             <label>Stale check interval (s)<input type="number" id="monitor-stale-check" min="1" step="1"></label>
             <label>Recent event history size<input type="number" id="monitor-history-limit" min="10" max="1000" step="10"></label>
           </div>
         </fieldset>
 
-        <fieldset data-settings-section="operations">
+        <fieldset>
           <legend>Webhook notifications</legend>
-          <label class="checkbox-row"><input type="checkbox" id="notifications-enabled"> Enable webhook notifications</label>
-          <label>Webhook URL<input type="url" id="notifications-url" placeholder="https://..."></label>
-          <label>Timeout (s)<input type="number" id="notifications-timeout" min="1" max="30" step="1"></label>
-          <p class="field-help">Choose which events are sent. The payload is generic JSON, suitable for ntfy, Home Assistant, Pushover bridges, Discord relays, or your own endpoint.</p>
-          <label class="checkbox-row"><input type="checkbox" data-notify-event="printer_error"> Printer error</label>
-          <label class="checkbox-row"><input type="checkbox" data-notify-event="printer_offline"> Printer offline</label>
-          <label class="checkbox-row"><input type="checkbox" data-notify-event="print_completed"> Print completed</label>
-          <label class="checkbox-row"><input type="checkbox" data-notify-event="telemetry_stale"> Telemetry stale</label>
-          <label class="checkbox-row"><input type="checkbox" data-notify-event="all_printers_unavailable"> All printers unavailable</label>
-          <label class="checkbox-row"><input type="checkbox" data-notify-event="obs_unavailable"> OBS unavailable</label>
-          <label class="checkbox-row"><input type="checkbox" data-notify-event="obs_restarted"> OBS restarted</label>
-          <label class="checkbox-row"><input type="checkbox" data-notify-event="stream_recovery_failed"> Stream recovery failed</label>
-          <div class="actions"><button type="button" id="test-notification">Send test webhook</button><button type="button" id="save-operations-config">Save operations settings</button></div>
-          <div id="operations-status" class="ops-result">Operations settings loaded separately from overlay appearance.</div>
+          <label class="toggle-row"><input type="checkbox" id="notifications-enabled"> Enable webhook notifications</label>
+          <div class="field-grid two-column">
+            <label>Webhook URL<input type="url" id="notifications-url" placeholder="https://..."></label>
+            <label>Timeout (s)<input type="number" id="notifications-timeout" min="1" max="30" step="1"></label>
+          </div>
+          <p class="field-help">Choose the events that should be sent as generic JSON.</p>
+          <div class="toggle-grid">
+            <label class="toggle-row"><input type="checkbox" data-notify-event="printer_error"> Printer error</label>
+            <label class="toggle-row"><input type="checkbox" data-notify-event="printer_offline"> Printer offline</label>
+            <label class="toggle-row"><input type="checkbox" data-notify-event="print_completed"> Print completed</label>
+            <label class="toggle-row"><input type="checkbox" data-notify-event="telemetry_stale"> Telemetry stale</label>
+            <label class="toggle-row"><input type="checkbox" data-notify-event="all_printers_unavailable"> All printers unavailable</label>
+            <label class="toggle-row"><input type="checkbox" data-notify-event="obs_unavailable"> OBS unavailable</label>
+            <label class="toggle-row"><input type="checkbox" data-notify-event="obs_restarted"> OBS restarted</label>
+            <label class="toggle-row"><input type="checkbox" data-notify-event="stream_recovery_failed"> Stream recovery failed</label>
+          </div>
+          <div class="section-actions">
+            <button type="button" id="test-notification">Send test webhook</button>
+            <button type="button" class="primary" id="save-operations-config">Save automation settings</button>
+          </div>
+          <div id="operations-status" class="result-box">Automation settings loading…</div>
         </fieldset>
+      </section>
 
-        <fieldset id="settings-printers" data-settings-section="printers">
-          <legend>Printer workspace</legend>
-          <p class="field-help">Select a printer first. Card appearance controls affect only the selected printer.</p>
-          <div id="printer-pages" class="printer-pages"></div>
-          <select id="printer-override-select" hidden><option value="">Select a printer</option></select>
-          <div class="selected-printer"><h3 id="selected-printer-title">No printer selected</h3><span id="selected-printer-id"></span></div>
-          <div class="profile-row"><button type="button" id="add-printer">Add printer</button><button type="button" id="remove-printer">Remove this printer</button><button type="button" id="test-printer">Test connection</button></div>
-          <label>Printer ID<input type="text" id="printer-id"></label>
-          <label>Printer name<input type="text" id="printer-name"></label>
-          <label>OBS scene<input type="text" id="printer-scene"></label>
-          <label>Label override<input type="text" id="printer-label-override"></label>
-          <label>Printer type<select id="printer-type"><option value="klipper">Klipper</option><option value="bambu">Bambu</option></select></label>
-          <div id="klipper-settings" class="connection-settings"><div class="connection-heading">Klipper connection</div><label>Moonraker URL<input type="text" id="printer-moonraker-url" placeholder="http://192.168.1.100:7125"></label></div>
-          <div id="bambu-settings" class="connection-settings" hidden><div class="connection-heading">Bambu LAN connection</div><label>Bambu MQTT URL<input type="text" id="printer-bambu-url" placeholder="mqtt://192.168.1.120:8883"></label><label>Access code<input type="password" id="printer-access-code"></label><label>Serial number<input type="text" id="printer-serial-number"></label></div>
-          <label>Printer accent override<input type="color" id="printer-accent-color" value="#38bdf8"></label>
-          <label>Printer text color override<input type="color" id="printer-text-color" value="#f5f7fa"></label>
-          <label>Printer panel opacity override<input type="range" id="printer-panel-opacity" min="0.2" max="1" step="0.05" value="0.92"></label>
-          <div class="checkbox-row"><input type="checkbox" id="printer-show-filename"> Show filename</div><div class="checkbox-row"><input type="checkbox" id="printer-show-state"> Show state</div><div class="checkbox-row"><input type="checkbox" id="printer-show-eta"> Show ETA</div><div class="checkbox-row"><input type="checkbox" id="printer-show-temps"> Show temperatures</div><div class="checkbox-row"><input type="checkbox" id="printer-show-layers"> Show layers</div>
-          <button type="button" id="clear-printer-override">Use default appearance for this printer</button>
-          <div class="profile-row"><button type="button" id="save-printer-style">Save this printer's style</button><select id="apply-style-target"><option value="">Apply saved style to…</option></select><button type="button" id="apply-printer-style">Apply saved style</button></div>
-        </fieldset>
+      <section id="settings-printers" class="settings-section printer-settings-section" data-settings-section="printers" hidden>
+        <div class="section-heading panel printer-heading-panel">
+          <div><p class="eyebrow">PRINTERS</p><h2>Printer workspace</h2></div>
+          <p>Select a printer on the left. Changes stay in a draft when you switch printers and are only applied when you press Save printer.</p>
+        </div>
 
-        <fieldset id="settings-profiles" data-settings-section="profiles">
-          <legend>Profile</legend>
-          <div class="profile-row"><input type="text" id="profile-name" placeholder="Profile name"><button type="button" id="save-profile">Save profile</button></div>
-          <div class="profile-row"><select id="profiles-list"><option value="">Choose a saved profile</option></select><button type="button" id="load-profile">Load</button><button type="button" id="delete-profile">Delete</button></div>
-          <div class="profile-row"><button type="button" id="export-profile">Export JSON</button><label><input type="file" id="import-profile" accept="application/json"> Import</label></div>
-        </fieldset>
+        <div class="printer-workspace">
+          <aside class="printer-sidebar panel">
+            <div class="printer-sidebar-header"><strong>Printers</strong><button type="button" id="add-printer">+ Add</button></div>
+            <div id="printer-list" class="printer-list"></div>
+            <div id="printer-empty-state" class="empty-state" hidden>No printers configured. Add one to get started.</div>
+          </aside>
 
-        <div class="actions sticky-actions"><button type="submit">Save overlay settings</button><button type="button" id="save-system-config">Save printer/connection config</button><button type="button" id="reset-settings">Reset appearance defaults</button></div>
-        <div id="status" class="status" aria-live="polite"></div>
-      </form>
-    </div>
+          <article id="printer-editor" class="printer-editor panel" hidden>
+            <header class="printer-editor-header">
+              <div>
+                <div class="printer-title-row">
+                  <h2 id="selected-printer-title">Printer</h2>
+                  <span id="selected-printer-dirty" class="pill warning" hidden>Unsaved changes</span>
+                </div>
+                <span id="selected-printer-connectivity" class="connectivity-label">Unknown</span>
+              </div>
+              <div class="printer-header-actions">
+                <button type="button" id="discard-printer-changes">Discard changes</button>
+                <button type="button" class="primary" id="save-printer">Save printer</button>
+              </div>
+            </header>
 
-    <div class="panel preview"><div class="preview-card" id="preview-card"><div class="preview-header"><span class="name">Jötunn</span><span class="state">printing</span></div><div class="file">MyModel.gcode</div><div class="bar"><i style="width:62%"></i></div><div class="meta"><span>62.0%</span><span>ETA 00:17</span></div><div class="meta"><span>Hotend 205° / 210°</span><span>Bed 60° / 65°</span></div><div class="preview-actions"><span>Layer 32 / 51</span><span>Live preview</span></div></div></div>
+            <nav class="printer-subnav" aria-label="Printer settings">
+              <button type="button" class="active" data-printer-tab="connection">Connection</button>
+              <button type="button" data-printer-tab="obs">OBS</button>
+              <button type="button" data-printer-tab="overlay">Overlay</button>
+            </nav>
+
+            <div data-printer-section="connection" class="printer-editor-section">
+              <div class="section-heading compact"><div><h3>Connection</h3><p>How PrintDirector identifies and talks to this printer.</p></div></div>
+              <div class="field-grid two-column">
+                <label>Printer name<input type="text" id="printer-name" data-printer-control placeholder="Jötunn"></label>
+                <label>Printer type
+                  <select id="printer-type" data-printer-control>
+                    <option value="klipper">Klipper / Moonraker</option>
+                    <option value="bambu">Bambu Lab LAN</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="klipper-settings" class="connection-card">
+                <strong>Klipper / Moonraker</strong>
+                <label>Moonraker URL<input type="text" id="printer-moonraker-url" data-printer-control placeholder="http://192.168.1.100:7125"></label>
+              </div>
+
+              <div id="bambu-settings" class="connection-card" hidden>
+                <strong>Bambu Lab LAN mode</strong>
+                <label>Bambu MQTT URL<input type="text" id="printer-bambu-url" data-printer-control placeholder="mqtt://192.168.1.120:8883"></label>
+                <div class="field-grid two-column">
+                  <label>Access code<input type="password" id="printer-access-code" data-printer-control></label>
+                  <label>Serial number<input type="text" id="printer-serial-number" data-printer-control></label>
+                </div>
+              </div>
+
+              <div class="section-actions align-start"><button type="button" id="test-printer">Test connection</button><span id="printer-connection-result" class="inline-result">Not tested.</span></div>
+
+              <details class="advanced-settings">
+                <summary>Advanced</summary>
+                <p class="field-help">Printer ID is PrintDirector's internal key. Changing it also moves this printer's saved overlay override to the new ID when you save.</p>
+                <label>Printer ID<input type="text" id="printer-id" data-printer-control placeholder="jotunn"></label>
+              </details>
+            </div>
+
+            <div data-printer-section="obs" class="printer-editor-section" hidden>
+              <div class="section-heading compact"><div><h3>OBS scene</h3><p>The scene PrintDirector should show when this printer is selected.</p></div></div>
+              <label>Scene name<input type="text" id="printer-scene" data-printer-control placeholder="Printer - Jötunn"></label>
+              <p class="field-help">Scene names are case-sensitive and must match OBS exactly. Global scene collection/profile validation lives under Automation.</p>
+            </div>
+
+            <div data-printer-section="overlay" class="printer-editor-section" hidden>
+              <div class="section-heading compact"><div><h3>Overlay</h3><p>By default this printer inherits the global appearance from General.</p></div></div>
+              <label class="toggle-row prominent-toggle"><input type="checkbox" id="printer-custom-overlay" data-printer-control> Use custom appearance for this printer</label>
+              <div class="overlay-mode-row"><span id="printer-overlay-mode-label">Using global appearance</span></div>
+
+              <div class="printer-overlay-workspace">
+                <div class="printer-overlay-fields">
+                  <label>Display label<input type="text" id="printer-label-override" data-printer-control data-printer-overlay-control placeholder="Optional label override"></label>
+                  <div class="field-grid two-column">
+                    <label>Accent<input type="color" id="printer-accent-color" data-printer-control data-printer-overlay-control value="#38bdf8"></label>
+                    <label>Text<input type="color" id="printer-text-color" data-printer-control data-printer-overlay-control value="#f5f7fa"></label>
+                    <label>Panel opacity<input type="range" id="printer-panel-opacity" data-printer-control data-printer-overlay-control min="0.2" max="1" step="0.05" value="0.92"></label>
+                    <label>Font scale<input type="range" id="printer-font-scale" data-printer-control data-printer-overlay-control min="0.8" max="1.5" step="0.05" value="1"></label>
+                  </div>
+                  <div class="toggle-grid">
+                    <label class="toggle-row"><input type="checkbox" id="printer-show-filename" data-printer-control data-printer-overlay-control> Filename</label>
+                    <label class="toggle-row"><input type="checkbox" id="printer-show-state" data-printer-control data-printer-overlay-control> State</label>
+                    <label class="toggle-row"><input type="checkbox" id="printer-show-eta" data-printer-control data-printer-overlay-control> ETA</label>
+                    <label class="toggle-row"><input type="checkbox" id="printer-show-temps" data-printer-control data-printer-overlay-control> Temperatures</label>
+                    <label class="toggle-row"><input type="checkbox" id="printer-show-layers" data-printer-control data-printer-overlay-control> Layers</label>
+                  </div>
+                </div>
+
+                <aside class="preview-panel compact-preview">
+                  <span class="preview-label">This printer</span>
+                  <div class="preview-card" id="printer-preview-card">
+                    <div class="preview-header"><strong data-preview-name>Printer</strong><span data-preview-state>printing</span></div>
+                    <div class="preview-file" data-preview-file>MyModel.gcode</div>
+                    <div class="preview-bar"><i style="width:62%"></i></div>
+                    <div class="preview-meta"><span>62.0%</span><span data-preview-eta>ETA 00:17</span></div>
+                    <div class="preview-meta" data-preview-temps><span>Hotend 205° / 210°</span><span>Bed 60° / 65°</span></div>
+                    <div class="preview-footer" data-preview-layers>Layer 32 / 51</div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+
+            <footer class="printer-editor-footer">
+              <span id="printer-save-status" class="inline-result">No unsaved changes.</span>
+              <button type="button" class="danger" id="delete-printer">Delete printer</button>
+            </footer>
+          </article>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <script src="/static/admin.js?v=8"></script>
+  <div id="settings-status" class="settings-toast" role="status" aria-live="polite">Loading settings…</div>
+
+  <script src="/static/settings-global.js?v=1"></script>
+  <script src="/static/printer-editor.js?v=1"></script>
   <script src="/static/operations.js?v=1"></script>
 </body>
 </html>
