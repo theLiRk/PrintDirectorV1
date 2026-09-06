@@ -13,18 +13,28 @@ class OBS:
         self.current_scene = None
         self.stream_state = "stopped"
         self.status_calls = 0
+        self.events = []
 
     async def set_scene(self, scene):
+        self.events.append(("set_scene", scene))
         self.current_scene = scene
+        return True
+
+    async def get_current_scene(self):
+        self.events.append(("confirm_scene", self.current_scene))
+        return self.current_scene
 
     async def is_streaming(self):
         self.status_calls += 1
+        self.events.append(("stream_status", self.streaming))
         return self.streaming
 
     async def start_stream(self):
+        self.events.append(("start_stream", self.current_scene))
         self.streaming = True
 
     async def stop_stream(self):
+        self.events.append(("stop_stream", self.current_scene))
         self.streaming = False
 
 
@@ -81,11 +91,55 @@ def test_stream_start_stop_grace():
         d = make(auto_start_stream=True, auto_stop_stream=True, stream_stop_delay=5)
         d.update(P("a", PrinterState.PRINTING))
         await d.tick(1)
+        assert not d.obs.streaming
+        await d.tick(2)
         assert d.obs.streaming
         d.update(P("a", PrinterState.IDLE))
-        await d.tick(2)
-        await d.tick(8)
+        await d.tick(3)
+        await d.tick(9)
         assert not d.obs.streaming
+
+    asyncio.run(run())
+
+
+def test_auto_stream_waits_for_scene_switch_and_confirmation():
+    async def run():
+        d = make(auto_start_stream=True)
+        d.obs.current_scene = "PrintDirector Idle"
+        d.update(P("a", PrinterState.PRINTING))
+
+        await d.tick(1)
+
+        assert d.obs.current_scene == "A"
+        assert not d.obs.streaming
+        assert ("start_stream", "A") not in d.obs.events
+
+        await d.tick(2)
+
+        assert d.obs.streaming
+        set_index = d.obs.events.index(("set_scene", "A"))
+        confirm_index = d.obs.events.index(("confirm_scene", "A"))
+        start_index = d.obs.events.index(("start_stream", "A"))
+        assert set_index < confirm_index < start_index
+
+    asyncio.run(run())
+
+
+def test_stream_start_is_blocked_if_obs_does_not_confirm_desired_scene():
+    async def run():
+        d = make(auto_start_stream=True)
+        d.obs.current_scene = "A"
+        d.update(P("a", PrinterState.PRINTING))
+
+        async def wrong_scene():
+            d.obs.events.append(("confirm_scene", "PrintDirector Idle"))
+            return "PrintDirector Idle"
+
+        d.obs.get_current_scene = wrong_scene
+        await d.tick(1)
+
+        assert not d.obs.streaming
+        assert not any(event[0] == "start_stream" for event in d.obs.events)
 
     asyncio.run(run())
 
