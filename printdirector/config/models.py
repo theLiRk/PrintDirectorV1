@@ -39,6 +39,11 @@ class OBSConfig(BaseModel):
     password: Optional[str] = None
     reconnect_interval: float = Field(5, ge=0)
     status_poll_interval: float = Field(15, ge=1)
+    auto_launch: bool = False
+    executable: Optional[str] = None
+    launch_args: list[str] = Field(default_factory=list)
+    process_check_interval: float = Field(5, ge=1)
+    launch_cooldown: float = Field(30, ge=5)
 
 
 class DirectorConfig(BaseModel):

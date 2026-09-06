@@ -7,6 +7,7 @@ PrintDirector is a local, asynchronous OBS director for multiple 3D printers. Pr
 - Normalized telemetry, event overrides, deterministic rotation, and manual override
 - OBS WebSocket v5 scene and stream control with duplicate-action protection
 - Event-driven OBS stream/scene tracking with `GetStreamStatus` polling as a watchdog/fallback
+- Optional Windows OBS process supervision and automatic launch when OBS is not running
 - FastAPI dashboard, transparent per-printer overlays, overview overlay, and live WebSocket updates
 - Rotating persistent logs for unattended troubleshooting
 - Liveness/readiness health endpoints
@@ -68,6 +69,29 @@ Optional local auth is available for shared LAN scenarios via `auth.enabled` and
 
 ### OBS connection settings
 `obs.reconnect_interval` controls retry backoff after a lost OBS request/event connection. `obs.status_poll_interval` defaults to 15 seconds. OBS stream and scene events are used as the primary state source; `GetStreamStatus` is retained as a periodic watchdog and as the automatic fallback if the event channel is unavailable.
+
+### Automatic OBS startup on Windows
+PrintDirector can optionally supervise the local OBS process. When enabled, it checks whether `obs64.exe` is actually running before doing anything. If OBS is already running but the WebSocket is unavailable, PrintDirector waits for the existing OBS instance instead of launching another copy.
+
+```yaml
+obs:
+  auto_launch: true
+  executable: 'C:\Program Files\obs-studio\bin\64bit\obs64.exe'
+  launch_args: []
+  process_check_interval: 5
+  launch_cooldown: 30
+```
+
+`executable` is optional. If it is omitted, PrintDirector checks `PATH`, the normal 64-bit OBS install under Program Files, and the common Steam install path. Automatic launch is currently Windows-only and only applies when `obs.host` is local (`127.0.0.1`, `localhost`, or `::1`). Remote OBS targets are never launched locally.
+
+The default `launch_args` is empty, so OBS opens normally. OBS officially supports `--minimize-to-tray` if you want unattended startup:
+
+```yaml
+  launch_args:
+    - --minimize-to-tray
+```
+
+A relaunch cooldown prevents repeated starts while OBS is still initializing. If Windows process detection fails, PrintDirector deliberately does not launch OBS because avoiding duplicate OBS instances is more important than forcing a restart.
 
 ### Logging
 Persistent logging is enabled by default:
@@ -144,12 +168,15 @@ For long-running use, Task Scheduler is preferable to leaving a PowerShell windo
 
 In the task settings, enable **Restart the task if it fails** (for example after 1 minute) and **Run task as soon as possible after a scheduled start is missed**. Because OBS itself normally runs in the interactive desktop session, a user-logon trigger is generally more appropriate than running PrintDirector as a SYSTEM service.
 
+With `obs.auto_launch: true`, a user-logon PrintDirector task can also bring OBS back up if OBS was not running or later exits/crashes. PrintDirector does not terminate OBS when PrintDirector itself shuts down.
+
 If the OBS password exists only as a temporary PowerShell environment variable, Task Scheduler will not inherit it. Use a persistent user environment variable or store the OBS password in PrintDirector's local configuration before relying on unattended startup.
 
 ## Troubleshooting
 - **Dashboard unavailable:** confirm the process is running and port 8765 is free.
 - **Printer offline:** verify the Moonraker/Bambu URL, credentials, trusted clients, and host reachability. Reconnection is automatic.
-- **OBS offline:** start OBS, enable WebSocket v5, verify host/port/password and firewall. Request and event channels reconnect automatically.
+- **OBS offline:** if auto-launch is disabled, start OBS manually. If auto-launch is enabled, check `logs/printdirector.log` for process-detection or executable-path errors. Also verify WebSocket v5 host/port/password and firewall settings.
+- **OBS launches repeatedly:** this should be prevented by process detection and the relaunch cooldown. Stop PrintDirector and collect `logs/printdirector.log` before launching OBS manually.
 - **OBS event channel unavailable:** PrintDirector logs a warning and automatically falls back to periodic `GetStreamStatus` polling.
 - **Scene does not switch:** scene names are case-sensitive and must match configuration exactly.
 - **No layer count:** printer telemetry does not always expose it; the UI intentionally hides unavailable values.

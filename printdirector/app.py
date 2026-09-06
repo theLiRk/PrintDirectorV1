@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .config.loader import obs_password
 from .director import Director
-from .obs import OBSClient
+from .obs import OBSClient, OBSProcessManager
 from .printers import PrinterManager
 
 log = logging.getLogger(__name__)
@@ -22,6 +22,7 @@ class Runtime:
 
     def _build_components(self, config):
         self.manager = PrinterManager(config.printers, self.demo)
+        self.obs_process = OBSProcessManager(config.obs)
         self.obs = OBSClient(config.obs, obs_password(config))
         self.director = Director(config.director, config.printers, self.obs)
         for adapter in self.manager.adapters.values():
@@ -34,15 +35,18 @@ class Runtime:
         return bool(self.tasks) and all(not task.done() for task in self.tasks)
 
     async def obs_watchdog(self):
-        interval = max(
-            1.0,
-            min(
-                max(self.config.obs.reconnect_interval, 1.0),
-                self.config.obs.status_poll_interval,
-            ),
-        )
+        intervals = [
+            max(self.config.obs.reconnect_interval, 1.0),
+            self.config.obs.status_poll_interval,
+        ]
+        if self.config.obs.auto_launch:
+            intervals.append(self.config.obs.process_check_interval)
+        interval = max(1.0, min(intervals))
+
         while True:
             try:
+                if not self.demo and self.config.obs.auto_launch:
+                    await self.obs_process.ensure_running()
                 await self.obs.is_streaming()
             except Exception:
                 log.exception("OBS watchdog failed")
@@ -63,6 +67,8 @@ class Runtime:
             await asyncio.sleep(1)
 
     async def start(self):
+        if not self.demo and self.config.obs.auto_launch:
+            await self.obs_process.ensure_running()
         await self.manager.start()
         self.tasks = [
             asyncio.create_task(self.director.run(), name="director"),
