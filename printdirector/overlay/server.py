@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import secrets
 from pathlib import Path
 
 import aiohttp
@@ -21,22 +22,22 @@ class Hub:
  def remove(self,ws): self.clients.discard(ws)
  async def broadcast(self,data):
   dead=[]
-  for ws in self.clients:
+  for ws in tuple(self.clients):
    try: await ws.send_json(data)
    except Exception: dead.append(ws)
   for ws in dead:self.remove(ws)
 
 
-def settings_path(config):
- path = Path(config.overlay.settings_file)
+def settings_path(runtime):
+ path = Path(runtime.config.overlay.settings_file)
  if not path.is_absolute():
-   path = Path.cwd() / path
+   path = runtime.config_path.parent / path
  return path
 
 
-def load_style(config):
- style = config.overlay.style
- path = settings_path(config)
+def load_style(runtime):
+ style = runtime.config.overlay.style
+ path = settings_path(runtime)
  if not path.exists():
    return style
  try:
@@ -46,41 +47,53 @@ def load_style(config):
    return style
 
 
-def persist_style(config, style):
- path = settings_path(config)
+def persist_style(runtime, style):
+ path = settings_path(runtime)
+ path.parent.mkdir(parents=True, exist_ok=True)
  path.write_text(json.dumps(style.model_dump(mode='json'), indent=2), encoding='utf-8')
- config.overlay.style = style
+ runtime.config.overlay.style = style
 
 
-def local_config_path():
- return Path.cwd() / 'config.local.json'
+def local_config_path(runtime):
+ return runtime.config_path.with_suffix('.local.json')
 
 
-def load_local_config():
- path = local_config_path()
- if not path.exists():
-   return {}
- try:
-   data = json.loads(path.read_text(encoding='utf-8'))
-   return data if isinstance(data, dict) else {}
- except (json.JSONDecodeError, TypeError):
-   return {}
+def persist_local_config(runtime, data):
+ path = local_config_path(runtime)
+ path.parent.mkdir(parents=True, exist_ok=True)
+ temp = path.with_suffix(path.suffix + '.tmp')
+ temp.write_text(json.dumps(data, indent=2), encoding='utf-8')
+ temp.replace(path)
 
 
-def persist_local_config(data):
- path = local_config_path(); path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+def expected_auth_token(config):
+ return (config.auth.token or os.getenv(config.auth.token_env, '')).strip()
+
+
+def request_token(request):
+ auth = request.headers.get('Authorization', '')
+ if auth.lower().startswith('bearer '):
+   return auth.split(' ', 1)[1].strip()
+ return (request.query_params.get('token') or '').strip()
+
+
+def websocket_token(websocket):
+ auth = websocket.headers.get('Authorization', '')
+ if auth.lower().startswith('bearer '):
+   return auth.split(' ', 1)[1].strip()
+ return (websocket.query_params.get('token') or '').strip()
+
+
+def token_matches(expected, supplied):
+ return bool(expected) and secrets.compare_digest(expected, supplied)
 
 
 def check_auth(config, request: Request):
  if not config.auth.enabled: return
- expected = os.getenv(config.auth.token_env, '')
+ expected = expected_auth_token(config)
  if not expected:
    raise HTTPException(401, 'Token is not configured')
- auth = request.headers.get('Authorization', '')
- token = request.query_params.get('token')
- if auth.lower().startswith('bearer '):
-   token = auth.split(' ', 1)[1].strip()
- if token != expected:
+ if not token_matches(expected, request_token(request)):
    raise HTTPException(401, 'Unauthorized')
 
 
@@ -88,7 +101,7 @@ def create_app(runtime):
  app = FastAPI(title='PrintDirector API', version='1.0')
  app.mount('/static', StaticFiles(directory=BASE/'static'), name='static')
  hub = Hub(); runtime.hub = hub
- runtime.config.overlay.style = load_style(runtime.config)
+ runtime.config.overlay.style = load_style(runtime)
 
  def all_data(): return [s.model_dump(mode='json') for s in runtime.manager.statuses().values()]
 
@@ -138,7 +151,7 @@ def create_app(runtime):
    style = OverlayThemeConfig.model_validate(payload)
   except ValidationError as exc:
    raise HTTPException(422, f'Invalid overlay settings: {exc}') from exc
-  persist_style(runtime.config, style)
+  persist_style(runtime, style)
   return {**style.model_dump(mode='json'), 'printer_ids': list(runtime.manager.adapters.keys())}
 
  async def _probe_bambu(printer: dict, gateway: str):
@@ -150,8 +163,10 @@ def create_app(runtime):
    printer.get('serial_number'),
   )
   try:
-   adapter._connect()
-   await asyncio.wait_for(adapter._messages.get(), timeout=10)
+   await adapter._connect()
+   payload = await asyncio.wait_for(adapter._messages.get(), timeout=10)
+   if isinstance(payload, Exception):
+     raise payload
    return {'ok': True, 'message': f'Bambu printer connected via MQTT at {gateway}'}
   except Exception as exc:
    raise HTTPException(502, f'Unable to connect to Bambu MQTT at {gateway}: {exc}') from exc
@@ -163,48 +178,28 @@ def create_app(runtime):
   gateway = (printer.get('moonraker_url') or printer.get('bambu_url') or '').strip().rstrip('/')
   if not gateway:
    raise HTTPException(400, 'Printer URL is required')
-  headers = {'Accept': 'application/json'}
   if printer_type == 'bambu':
    return await _probe_bambu(printer, gateway)
-   access_code = (printer.get('access_code') or '').strip()
-   serial_number = (printer.get('serial_number') or '').strip()
-   if access_code: headers['X-Access-Code'] = access_code; headers['Authorization'] = f'Bearer {access_code}'
-   if serial_number: headers['X-Serial-Number'] = serial_number; headers['X-Device-Serial'] = serial_number
-   candidates = [gateway, f'{gateway}/api/version', f'{gateway}/api/v1/info', f'{gateway}/api/v1/status', f'{gateway}/api/v1/device']
-   for url in candidates:
-     try:
-       async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-         async with session.get(url, headers=headers) as response:
-           if response.status in (401,403):
-             raise HTTPException(401, 'Printer rejected the credentials')
-           if response.status >= 400:
-             continue
-           body = await response.text()
-           if not body.strip():
-             continue
-           try: json.loads(body)
-           except json.JSONDecodeError: continue
-           return {'ok': True, 'message': f'Bambu printer connected at {gateway}'}
-     except Exception:
-       continue
-   raise HTTPException(502, 'Unable to reach the Bambu printer with the configured credentials')
+
+  headers = {'Accept': 'application/json'}
   candidates = [gateway, f'{gateway}/printer/info', f'{gateway}/api/server', f'{gateway}/server']
-  for url in candidates:
-   try:
-     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-       async with session.get(url, headers=headers) as response:
-         if response.status >= 400:
-           continue
-         body = await response.text()
-         if not body.strip():
-           continue
-         try:
-           payload = json.loads(body)
-         except json.JSONDecodeError:
-           continue
-         if isinstance(payload, dict) and ('result' in payload or 'status' in payload or 'server' in payload):
-           return {'ok': True, 'message': f'Klipper printer connected at {gateway}'}
-   except Exception:
+  timeout = aiohttp.ClientTimeout(total=5)
+  async with aiohttp.ClientSession(timeout=timeout) as session:
+   for url in candidates:
+    try:
+     async with session.get(url, headers=headers) as response:
+      if response.status >= 400:
+       continue
+      body = await response.text()
+      if not body.strip():
+       continue
+      try:
+       payload = json.loads(body)
+      except json.JSONDecodeError:
+       continue
+      if isinstance(payload, dict) and ('result' in payload or 'status' in payload or 'server' in payload):
+       return {'ok': True, 'message': f'Klipper printer connected at {gateway}'}
+    except (aiohttp.ClientError, asyncio.TimeoutError):
      continue
   raise HTTPException(502, 'Unable to reach the Klipper printer at the configured URL')
 
@@ -225,28 +220,41 @@ def create_app(runtime):
   return data
 
  @app.post('/api/system-config')
- def update_system_config(request: Request, payload: dict):
+ async def update_system_config(request: Request, payload: dict):
   if runtime.config.auth.enabled: check_auth(runtime.config, request)
+  payload = dict(payload)
   if 'obs' in payload and isinstance(payload['obs'], dict):
+   payload['obs'] = dict(payload['obs'])
    if 'password' in payload['obs'] and not payload['obs']['password']:
      payload['obs']['password'] = runtime.config.obs.password
   if 'auth' in payload and isinstance(payload['auth'], dict):
+   payload['auth'] = dict(payload['auth'])
    if 'token' in payload['auth'] and not payload['auth']['token']:
      payload['auth']['token'] = runtime.config.auth.token
+
   merged = runtime.config.model_dump(mode='json')
   merged = {**merged, **payload}
-  if 'obs' in payload and isinstance(payload['obs'], dict):
-   merged['obs'] = {**merged.get('obs', {}), **payload['obs']}
-  if 'auth' in payload and isinstance(payload['auth'], dict):
-   merged['auth'] = {**merged.get('auth', {}), **payload['auth']}
+  for section in ('obs', 'auth', 'director', 'overlay', 'logging'):
+   if section in payload and isinstance(payload[section], dict):
+    merged[section] = {**runtime.config.model_dump(mode='json').get(section, {}), **payload[section]}
   if 'printers' in payload and isinstance(payload['printers'], list):
    merged['printers'] = payload['printers']
+
   try:
-   runtime.config = runtime.config.model_validate(merged)
+   new_config = type(runtime.config).model_validate(merged)
   except ValidationError as exc:
    raise HTTPException(422, f'Invalid system configuration: {exc}') from exc
-  persist_local_config(merged)
-  return runtime.config.model_dump(mode='json')
+
+  restart_required = []
+  if (new_config.overlay.host, new_config.overlay.port) != (runtime.config.overlay.host, runtime.config.overlay.port):
+   restart_required.append('overlay_bind')
+
+  persist_local_config(runtime, merged)
+  await runtime.reconfigure(new_config)
+  result = runtime.config.model_dump(mode='json')
+  if restart_required:
+   result['restart_required'] = restart_required
+  return result
 
  @app.post('/api/director/auto/{enabled}')
  def auto(enabled: bool, request: Request):
@@ -277,11 +285,19 @@ def create_app(runtime):
 
  @app.websocket('/ws/printers')
  async def ws(websocket: WebSocket):
+  if runtime.config.auth.enabled:
+   expected = expected_auth_token(runtime.config)
+   if not expected or not token_matches(expected, websocket_token(websocket)):
+    await websocket.close(code=1008, reason='Unauthorized')
+    return
   await hub.add(websocket)
   try:
    await websocket.send_json({'printers': all_data(), 'director': runtime.director.public_status()})
    while True: await websocket.receive_text()
-  except WebSocketDisconnect: hub.remove(websocket)
+  except WebSocketDisconnect:
+   pass
+  finally:
+   hub.remove(websocket)
 
  @app.get('/', response_class=HTMLResponse)
  def dash(): return (BASE/'templates/dashboard.html').read_text(encoding='utf-8')
