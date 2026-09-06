@@ -21,6 +21,7 @@ class OBSProcessManager:
     """
 
     DEFAULT_PROCESS_NAME = "obs64.exe"
+    LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
     def __init__(self, cfg):
         self.cfg = cfg
@@ -28,11 +29,16 @@ class OBSProcessManager:
         self.last_launch_at = 0.0
         self.last_launch_path = None
         self._unsupported_reported = False
+        self._remote_target_reported = False
         self._missing_executable_reported_at = 0.0
 
     @property
     def supported(self):
         return platform.system().lower() == "windows"
+
+    @property
+    def local_target(self):
+        return str(self.cfg.host).strip().lower() in self.LOCAL_HOSTS
 
     def _expand_path(self, value):
         if not value:
@@ -52,7 +58,13 @@ class OBSProcessManager:
         for base_name in ("ProgramW6432", "ProgramFiles"):
             base = os.environ.get(base_name)
             if base:
-                candidate = Path(base) / "obs-studio" / "bin" / "64bit" / self.DEFAULT_PROCESS_NAME
+                candidate = (
+                    Path(base)
+                    / "obs-studio"
+                    / "bin"
+                    / "64bit"
+                    / self.DEFAULT_PROCESS_NAME
+                )
                 key = str(candidate).lower()
                 if key not in seen:
                     seen.add(key)
@@ -148,6 +160,14 @@ class OBSProcessManager:
 
     async def ensure_running(self):
         if not self.cfg.auto_launch:
+            return False
+        if not self.local_target:
+            if not self._remote_target_reported:
+                log.warning(
+                    "OBS auto-launch is disabled because obs.host points to a remote host: %s",
+                    self.cfg.host,
+                )
+                self._remote_target_reported = True
             return False
         if not self.supported:
             if not self._unsupported_reported:
