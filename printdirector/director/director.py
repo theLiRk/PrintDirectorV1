@@ -159,43 +159,78 @@ class Director:
         elif self.inactive_since is None:
             self.inactive_since = now
 
-        await self._stream(active, now)
+        # Manual mode still keeps automatic stream start/stop behavior, but the
+        # scene was already selected by command_scene before we get here.
         if not self.auto_enabled:
+            await self._stream(active, now)
             return
+
+        # In automatic mode, always select the intended scene before touching
+        # the stream output. Starting the stream while OBS is still on the old
+        # scene can leave OBS visually rendering the old composition even after
+        # CurrentProgramScene has advanced to the new scene.
+        scene_changed = False
         if self.override and now < self.override_until:
-            await self._show(self.override.printer_id)
-            return
-        self.override = None
-        if not active:
-            await self.obs.set_scene(self.cfg.idle_scene)
-            self.current_printer = None
-            return
-        self.rotation = active
-        if len(active) == 1:
-            await self._show(active[0])
-            return
-        if (
-            now - self.last_switch >= self.cfg.rotation_interval
-            or self.current_printer not in active
-        ):
-            self.index = (self.index + 1) % len(active)
-            await self._show(active[self.index])
-            self.last_switch = now
+            scene_changed = await self._show(self.override.printer_id)
+        else:
+            self.override = None
+            if not active:
+                previous_scene = self.obs.current_scene
+                ok = await self.obs.set_scene(self.cfg.idle_scene)
+                scene_changed = previous_scene != self.cfg.idle_scene and ok is not False
+                self.current_printer = None
+            else:
+                self.rotation = active
+                if len(active) == 1:
+                    scene_changed = await self._show(active[0])
+                elif (
+                    now - self.last_switch >= self.cfg.rotation_interval
+                    or self.current_printer not in active
+                ):
+                    self.index = (self.index + 1) % len(active)
+                    scene_changed = await self._show(active[self.index])
+                    self.last_switch = now
+
+        # If this tick changed the Program scene, leave one Director cycle for
+        # OBS to settle before starting the stream. On the following tick the
+        # scene is also queried back from OBS before start_stream is allowed.
+        await self._stream(active, now, defer_start=scene_changed)
 
     async def _show(self, printer_id):
         scene = self.scenes.get(printer_id)
         if not scene:
             log.warning("No OBS scene configured for printer %s", printer_id)
-            return
+            return False
+        previous_scene = self.obs.current_scene
         self.current_printer = printer_id
-        await self.obs.set_scene(scene)
+        ok = await self.obs.set_scene(scene)
+        return previous_scene != scene and ok is not False
 
-    async def _stream(self, active, now):
+    async def _stream(self, active, now, defer_start=False):
         if not self.cfg.auto_start_stream and not self.cfg.auto_stop_stream:
             return
 
         streaming = await self.obs.is_streaming()
         if active and self.cfg.auto_start_stream and not streaming:
+            if defer_start:
+                log.info("OBS stream start deferred until the new Program scene settles")
+                return
+
+            desired = self.desired_scene(now)
+            if desired:
+                get_current_scene = getattr(self.obs, "get_current_scene", None)
+                if callable(get_current_scene):
+                    current = await get_current_scene()
+                else:
+                    current = self.obs.current_scene
+                if current != desired:
+                    log.warning(
+                        "OBS stream start deferred until Program scene is confirmed as %s (current=%s)",
+                        desired,
+                        current,
+                    )
+                    return
+
             await self.obs.start_stream()
         elif (
             not active
