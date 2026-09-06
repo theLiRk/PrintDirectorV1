@@ -14,7 +14,7 @@ const APPEARANCE_PRESETS = {
 const $ = (id) => document.getElementById(id);
 const deepClone = (value) => JSON.parse(JSON.stringify(value));
 let overlaySettings = { ...APPEARANCE_DEFAULTS, printer_overrides: {} };
-let runtimeConfig = { printers: [], obs: {}, overlay: {}, auth: {} };
+let runtimeConfig = { printers: [], obs: {}, overlay: {}, auth: {}, mqtt: {} };
 let printerStatuses = {};
 
 function getToken() {
@@ -142,7 +142,38 @@ function applyAppearanceValues(values) {
   setPageStatus('Appearance preview updated. Save appearance to keep it.');
 }
 
+function ensureMqttFields() {
+  if ($('mqtt-settings-fieldset')) return;
+  const section = $('settings-connections');
+  const actions = section?.querySelector('.section-actions');
+  if (!section || !actions) return;
+  const fieldset = document.createElement('fieldset');
+  fieldset.id = 'mqtt-settings-fieldset';
+  fieldset.innerHTML = `
+    <legend>Home Assistant / MQTT</legend>
+    <p class="field-help">Publish each printer as an automatically discovered Home Assistant MQTT device. This is a separate broker connection from Bambu printer MQTT.</p>
+    <label class="toggle-row"><input type="checkbox" id="mqtt-enabled"> Enable MQTT publishing</label>
+    <div class="field-grid two-column">
+      <label>Broker host <input type="text" id="mqtt-host" placeholder="192.168.1.50"></label>
+      <label>Broker port <input type="number" id="mqtt-port" min="1" max="65535" placeholder="1883"></label>
+      <label>Username <input type="text" id="mqtt-username" autocomplete="username" placeholder="printdirector"></label>
+      <label>Password <input type="password" id="mqtt-password" autocomplete="current-password" placeholder="Optional broker password"></label>
+      <label>Password environment variable <input type="text" id="mqtt-password-env" placeholder="PRINTDIRECTOR_MQTT_PASSWORD"></label>
+      <label>State topic prefix <input type="text" id="mqtt-topic-prefix" placeholder="printdirector"></label>
+      <label>Discovery prefix <input type="text" id="mqtt-discovery-prefix" placeholder="homeassistant"></label>
+      <label>Heartbeat interval (s) <input type="number" id="mqtt-heartbeat" min="5" step="1"></label>
+      <label>Minimum telemetry publish interval (s) <input type="number" id="mqtt-min-publish" min="0" step="0.5"></label>
+    </div>
+    <label class="toggle-row"><input type="checkbox" id="mqtt-discovery-enabled"> Enable Home Assistant MQTT Discovery</label>
+    <label class="toggle-row"><input type="checkbox" id="mqtt-tls-enabled"> Use TLS for broker connection</label>
+    <label class="toggle-row danger-toggle"><input type="checkbox" id="mqtt-tls-insecure"> Allow insecure TLS certificate validation</label>
+    <p class="field-help">With discovery enabled, adding a printer in PrintDirector automatically creates its Home Assistant device and sensors. Removing a printer clears its retained discovery entries.</p>
+  `;
+  actions.before(fieldset);
+}
+
 function populateConnections(config) {
+  ensureMqttFields();
   runtimeConfig = config;
   $('obs-host').value = config.obs?.host || '127.0.0.1';
   $('obs-port').value = config.obs?.port || 4455;
@@ -151,6 +182,20 @@ function populateConnections(config) {
   $('overlay-host').value = config.overlay?.host || '127.0.0.1';
   $('overlay-port').value = config.overlay?.port || 8765;
   $('allow-lan').checked = Boolean(config.overlay?.allow_lan);
+  const mqtt = config.mqtt || {};
+  $('mqtt-enabled').checked = Boolean(mqtt.enabled);
+  $('mqtt-host').value = mqtt.host || '127.0.0.1';
+  $('mqtt-port').value = mqtt.port || 1883;
+  $('mqtt-username').value = mqtt.username || '';
+  $('mqtt-password').value = mqtt.password || '';
+  $('mqtt-password-env').value = mqtt.password_env || 'PRINTDIRECTOR_MQTT_PASSWORD';
+  $('mqtt-topic-prefix').value = mqtt.topic_prefix || 'printdirector';
+  $('mqtt-discovery-enabled').checked = mqtt.discovery_enabled ?? true;
+  $('mqtt-discovery-prefix').value = mqtt.discovery_prefix || 'homeassistant';
+  $('mqtt-heartbeat').value = mqtt.heartbeat_interval ?? 30;
+  $('mqtt-min-publish').value = mqtt.min_publish_interval ?? 2;
+  $('mqtt-tls-enabled').checked = Boolean(mqtt.tls_enabled);
+  $('mqtt-tls-insecure').checked = Boolean(mqtt.tls_insecure);
 }
 async function saveConnections() {
   const payload = {
@@ -159,7 +204,26 @@ async function saveConnections() {
       password_env: $('obs-password-env').value.trim() || 'OBS_WEBSOCKET_PASSWORD',
       password: $('obs-password').value || runtimeConfig.obs?.password || ''
     },
-    overlay: { host: $('overlay-host').value.trim() || '127.0.0.1', port: Number($('overlay-port').value || 8765), allow_lan: $('allow-lan').checked }
+    overlay: { host: $('overlay-host').value.trim() || '127.0.0.1', port: Number($('overlay-port').value || 8765), allow_lan: $('allow-lan').checked },
+    mqtt: {
+      enabled: $('mqtt-enabled').checked,
+      host: $('mqtt-host').value.trim() || '127.0.0.1',
+      port: Number($('mqtt-port').value || 1883),
+      username: $('mqtt-username').value.trim() || null,
+      password: $('mqtt-password').value || runtimeConfig.mqtt?.password || null,
+      password_env: $('mqtt-password-env').value.trim() || 'PRINTDIRECTOR_MQTT_PASSWORD',
+      client_id: runtimeConfig.mqtt?.client_id || 'printdirector',
+      topic_prefix: $('mqtt-topic-prefix').value.trim() || 'printdirector',
+      discovery_enabled: $('mqtt-discovery-enabled').checked,
+      discovery_prefix: $('mqtt-discovery-prefix').value.trim() || 'homeassistant',
+      qos: runtimeConfig.mqtt?.qos ?? 0,
+      retain: runtimeConfig.mqtt?.retain ?? true,
+      keepalive: runtimeConfig.mqtt?.keepalive ?? 60,
+      heartbeat_interval: Number($('mqtt-heartbeat').value || 30),
+      min_publish_interval: Number($('mqtt-min-publish').value || 2),
+      tls_enabled: $('mqtt-tls-enabled').checked,
+      tls_insecure: $('mqtt-tls-insecure').checked
+    }
   };
   setPageStatus('Saving connection settings…');
   const response = await fetch('/api/system-config', {
