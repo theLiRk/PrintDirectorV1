@@ -20,6 +20,19 @@ def test_auto_launch_disabled_never_checks_or_starts(monkeypatch):
     assert asyncio.run(manager.ensure_running()) is False
 
 
+def test_remote_obs_target_is_never_launched_locally(monkeypatch):
+    force_windows(monkeypatch)
+    manager = OBSProcessManager(
+        OBSConfig(auto_launch=True, host="192.168.1.50")
+    )
+
+    def fail():
+        raise AssertionError("remote OBS target must not trigger local process detection")
+
+    monkeypatch.setattr(manager, "_is_running_sync", fail)
+    assert asyncio.run(manager.ensure_running()) is False
+
+
 def test_running_obs_is_never_launched_again(monkeypatch):
     force_windows(monkeypatch)
     manager = OBSProcessManager(OBSConfig(auto_launch=True))
