@@ -12,14 +12,6 @@ log = logging.getLogger(__name__)
 
 
 class OBSProcessManager:
-    """Detect and optionally launch OBS without creating duplicate instances.
-
-    Automatic process management is intentionally Windows-only for now because
-    PrintDirector's production deployment runs on Windows and process discovery can
-    be made deterministic there with tasklist. Other platforms keep the existing
-    manual-start behavior even if auto_launch is accidentally enabled.
-    """
-
     DEFAULT_PROCESS_NAME = "obs64.exe"
     LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
@@ -28,6 +20,7 @@ class OBSProcessManager:
         self.process_running = None
         self.last_launch_at = 0.0
         self.last_launch_path = None
+        self.last_restart_at = 0.0
         self._unsupported_reported = False
         self._remote_target_reported = False
         self._missing_executable_reported_at = 0.0
@@ -98,26 +91,25 @@ class OBSProcessManager:
             return configured.name
         return self.DEFAULT_PROCESS_NAME
 
+    def _run_hidden(self, command, timeout=10):
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            creationflags=creationflags,
+        )
+
     def _is_running_sync(self):
         if not self.supported:
             return None
         process_name = self._process_name()
-        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         try:
-            result = subprocess.run(
-                [
-                    "tasklist",
-                    "/FI",
-                    f"IMAGENAME eq {process_name}",
-                    "/FO",
-                    "CSV",
-                    "/NH",
-                ],
-                capture_output=True,
-                text=True,
+            result = self._run_hidden(
+                ["tasklist", "/FI", f"IMAGENAME eq {process_name}", "/FO", "CSV", "/NH"],
                 timeout=5,
-                check=False,
-                creationflags=creationflags,
             )
         except (OSError, subprocess.SubprocessError) as exc:
             log.warning("Unable to check whether OBS is running: %s", exc)
@@ -158,6 +150,11 @@ class OBSProcessManager:
             close_fds=True,
         )
 
+    def _terminate_sync(self):
+        process_name = self._process_name()
+        result = self._run_hidden(["taskkill", "/IM", process_name, "/T", "/F"], timeout=10)
+        return result.returncode in {0, 128}
+
     async def ensure_running(self):
         if not self.cfg.auto_launch:
             return False
@@ -179,7 +176,6 @@ class OBSProcessManager:
         if running is True:
             return True
         if running is None:
-            # If process detection itself failed, never risk starting a duplicate OBS.
             return False
 
         now = monotonic()
@@ -205,8 +201,39 @@ class OBSProcessManager:
             log.exception("Failed to launch OBS from %s: %s", executable, exc)
             return False
 
-        # Treat the process as tentatively running until the next tasklist check. The
-        # cooldown prevents another launch while OBS is still initializing.
         self.process_running = True
         log.info("OBS launch requested: %s", executable)
         return True
+
+    async def restart(self):
+        """Restart local OBS. Caller must enforce the configured recovery policy."""
+        if not self.cfg.auto_launch or not self.local_target or not self.supported:
+            return False
+        now = monotonic()
+        if now - self.last_restart_at < max(60.0, self.cfg.restart_obs_cooldown):
+            return False
+        running = await self.is_running()
+        if running is None:
+            return False
+        self.last_restart_at = now
+        if running:
+            log.warning("Restarting OBS after failed stream recovery")
+            try:
+                terminated = await asyncio.to_thread(self._terminate_sync)
+            except Exception as exc:
+                log.exception("Unable to terminate OBS for recovery: %s", exc)
+                return False
+            if not terminated:
+                return False
+            for _ in range(20):
+                await asyncio.sleep(0.5)
+                running = await self.is_running()
+                if running is False:
+                    break
+            if running is not False:
+                log.error("OBS did not exit during recovery restart")
+                return False
+
+        self.last_launch_at = 0.0
+        self.process_running = False
+        return await self.ensure_running()

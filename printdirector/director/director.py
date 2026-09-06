@@ -8,9 +8,10 @@ log = logging.getLogger(__name__)
 
 
 class Director:
-    def __init__(self, config, printer_configs, obs):
+    def __init__(self, config, printer_configs, obs, event_sink=None):
         self.cfg = config
         self.obs = obs
+        self.event_sink = event_sink
         self.scenes = {p.id: p.obs.scene for p in printer_configs}
         self.statuses = {}
         self.previous = {}
@@ -31,20 +32,26 @@ class Director:
         self.statuses[status.printer_id] = status
         if old is None:
             log.info(
-                "Printer %s initial state: %s (online=%s)",
+                "Printer %s initial state: %s (online=%s stale=%s)",
                 status.printer_id,
                 status.state.value,
                 status.online,
+                getattr(status, "stale", False),
             )
         else:
-            if old.online != status.online or old.state != status.state:
+            if (
+                old.online != status.online
+                or old.state != status.state
+                or getattr(old, "stale", False) != getattr(status, "stale", False)
+            ):
                 log.info(
-                    "Printer %s state %s/%s -> %s/%s",
+                    "Printer %s state %s/%s -> %s/%s%s",
                     status.printer_id,
                     old.state.value,
                     "online" if old.online else "offline",
                     status.state.value,
                     "online" if status.online else "offline",
+                    "/stale" if getattr(status, "stale", False) else "",
                 )
             self._events(old, status)
         self.previous[status.printer_id] = status.model_copy(deep=True)
@@ -71,6 +78,7 @@ class Director:
 
         if (
             new.online
+            and not getattr(new, "stale", False)
             and new.state in (PrinterState.PRINTING, PrinterState.PAUSED)
             and new.progress >= self.cfg.near_complete_threshold
             and new.printer_id not in self._near
@@ -84,6 +92,11 @@ class Director:
             self.handle_event(max(events, key=lambda event: event.priority))
 
     def handle_event(self, event):
+        if self.event_sink:
+            try:
+                self.event_sink(event)
+            except Exception:
+                log.exception("Director event sink failed")
         hold = self.cfg.event_hold_times.get(event.type.value, 0)
         if hold and (not self.override or event.priority >= self.override.priority):
             self.override = event
@@ -111,8 +124,32 @@ class Director:
         return sorted(
             printer_id
             for printer_id, status in self.statuses.items()
-            if status.state in (PrinterState.PRINTING, PrinterState.PAUSED)
+            if status.online
+            and not getattr(status, "stale", False)
+            and status.state in (PrinterState.PRINTING, PrinterState.PAUSED)
         )
+
+    def desired_scene(self, now=None):
+        now = now or monotonic()
+        if not self.auto_enabled and self.manual_scene:
+            return self.manual_scene
+        if self.override and now < self.override_until:
+            return self.scenes.get(self.override.printer_id)
+        active = self.active_ids()
+        if not active:
+            return self.cfg.idle_scene
+        if self.current_printer in active:
+            return self.scenes.get(self.current_printer)
+        if len(active) > 1 and self.cfg.overview_scene:
+            return self.cfg.overview_scene
+        return self.scenes.get(active[0])
+
+    async def restore_scene(self):
+        scene = self.desired_scene()
+        if not scene:
+            return False
+        log.info("Restoring intended OBS scene after reconnect: %s", scene)
+        return await self.obs.set_scene(scene)
 
     async def tick(self, now=None):
         now = now or monotonic()
@@ -191,5 +228,7 @@ class Director:
             "obs_events_connected": getattr(self.obs, "event_connected", False),
             "obs_streaming": self.obs.streaming,
             "obs_stream_state": getattr(self.obs, "stream_state", None),
+            "obs_stream_state_age": getattr(self.obs, "stream_state_age", 0),
+            "obs_preflight": getattr(self.obs, "last_preflight", None),
             "current_scene": self.obs.current_scene,
         }

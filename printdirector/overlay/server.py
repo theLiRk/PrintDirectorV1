@@ -2,16 +2,18 @@ import asyncio
 import json
 import os
 import secrets
+from datetime import datetime, timezone
 from pathlib import Path
 
 import aiohttp
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 from printdirector.config.models import OverlayThemeConfig
 from printdirector.printers.bambu import BambuAdapter
+from printdirector.utils.diagnostics import build_diagnostics_zip
 
 BASE = Path(__file__).parent
 
@@ -134,16 +136,20 @@ def create_app(runtime):
         ]
 
     def health_payload(status):
-        statuses = runtime.manager.statuses()
-        return {
-            "status": status,
-            "runtime_running": runtime.is_running(),
-            "obs_connected": runtime.obs.connected,
-            "obs_events_connected": getattr(runtime.obs, "event_connected", False),
-            "obs_stream_state": getattr(runtime.obs, "stream_state", None),
-            "configured_printers": len(statuses),
-            "online_printers": sum(item.online for item in statuses.values()),
-        }
+        if hasattr(runtime, "operational_status"):
+            operational = runtime.operational_status()
+        else:
+            statuses = runtime.manager.statuses()
+            operational = {
+                "runtime_running": runtime.is_running(),
+                "obs_connected": runtime.obs.connected,
+                "obs_events_connected": getattr(runtime.obs, "event_connected", False),
+                "obs_stream_state": getattr(runtime.obs, "stream_state", None),
+                "configured_printers": len(statuses),
+                "online_printers": sum(bool(getattr(item, "online", False)) for item in statuses.values()),
+                "stale_printers": [],
+            }
+        return {"status": status, **operational}
 
     @app.middleware("http")
     async def auth_middleware(request: Request, call_next):
@@ -164,13 +170,61 @@ def create_app(runtime):
 
     @app.get("/api/health/ready")
     async def ready():
-        # Liveness and readiness are intentionally separate. A readiness request also
-        # performs an OBS watchdog poll so stale websocket state cannot report ready.
         if not runtime.demo:
             await runtime.obs.is_streaming(force=True)
-        is_ready = runtime.is_running() and (runtime.demo or runtime.obs.connected)
+            preflight_runner = getattr(runtime, "_run_preflight", None)
+            preflight = await preflight_runner(force=True) if preflight_runner else None
+        else:
+            preflight = None
+        preflight_supported = hasattr(runtime, "_run_preflight")
+        obs_ready = runtime.demo or (
+            runtime.obs.connected
+            and (
+                not runtime.config.obs.preflight_enabled
+                or not preflight_supported
+                or bool(preflight and preflight.get("ready"))
+            )
+        )
+        is_ready = runtime.is_running() and obs_ready
         payload = health_payload("ready" if is_ready else "degraded")
         return JSONResponse(status_code=200 if is_ready else 503, content=payload)
+
+    @app.get("/api/events")
+    def events(request: Request, limit: int = 50):
+        check_auth(runtime.config, request)
+        return runtime.history.list(min(max(limit, 1), 500))
+
+    @app.get("/api/diagnostics")
+    def diagnostics(request: Request):
+        check_auth(runtime.config, request)
+        content = build_diagnostics_zip(runtime)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
+        return Response(
+            content=content,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="printdirector-diagnostics-{stamp}.zip"'},
+        )
+
+    @app.get("/api/obs/preflight")
+    async def obs_preflight(request: Request):
+        check_auth(runtime.config, request)
+        if runtime.demo:
+            return {"ready": True, "demo": True, "missing_scenes": []}
+        return await runtime._run_preflight(force=True)
+
+    @app.post("/api/notifications/test")
+    async def notification_test(request: Request):
+        check_auth(runtime.config, request)
+        event = runtime.history.add(
+            "notification_test",
+            "PrintDirector webhook test",
+            "info",
+            details={"test": True},
+        )
+        sent = await runtime.notifier.send(event, force=True)
+        if not sent:
+            raise HTTPException(502, "Webhook test failed; check URL and PrintDirector log")
+        return {"ok": True}
 
     @app.get("/api/printers")
     def printers(request: Request):
@@ -282,7 +336,7 @@ def create_app(runtime):
                 except (aiohttp.ClientError, asyncio.TimeoutError):
                     continue
         raise HTTPException(
-            502, f"Unable to reach the Klipper printer at the configured URL"
+            502, "Unable to reach the Klipper printer at the configured URL"
         )
 
     @app.post("/api/printers/test")
@@ -319,7 +373,15 @@ def create_app(runtime):
 
         current = runtime.config.model_dump(mode="json")
         merged = {**current, **payload}
-        for section in ("obs", "auth", "director", "overlay", "logging"):
+        for section in (
+            "obs",
+            "auth",
+            "director",
+            "monitoring",
+            "notifications",
+            "overlay",
+            "logging",
+        ):
             if section in payload and isinstance(payload[section], dict):
                 merged[section] = {**current.get(section, {}), **payload[section]}
         if "printers" in payload and isinstance(payload["printers"], list):
@@ -399,6 +461,8 @@ def create_app(runtime):
                 {
                     "printers": all_data(),
                     "director": runtime.director.public_status(),
+                    "operations": runtime.operational_status(),
+                    "events": runtime.history.list(20),
                 }
             )
             while True:

@@ -37,24 +37,38 @@ class OBSConfig(BaseModel):
     port: int = 4455
     password_env: str = "OBS_WEBSOCKET_PASSWORD"
     password: Optional[str] = None
+    scene_collection: Optional[str] = None
+    profile: Optional[str] = None
     reconnect_interval: float = Field(5, ge=0)
     status_poll_interval: float = Field(15, ge=1)
+
+    # Local Windows process supervision.
     auto_launch: bool = False
     executable: Optional[str] = None
     launch_args: list[str] = Field(default_factory=list)
     process_check_interval: float = Field(5, ge=1)
     launch_cooldown: float = Field(30, ge=5)
 
+    # Preflight and recovery. Process restart is deliberately opt-in.
+    preflight_enabled: bool = True
+    preflight_interval: float = Field(30, ge=5)
+    startup_ready_timeout: float = Field(45, ge=5)
+    reconnect_stuck_seconds: float = Field(90, ge=15)
+    stream_recovery_enabled: bool = True
+    stream_recovery_cooldown: float = Field(300, ge=30)
+    restart_obs_on_stream_failure: bool = False
+    restart_obs_cooldown: float = Field(600, ge=60)
+
 
 class DirectorConfig(BaseModel):
     enabled: bool = True
-    rotation_interval: float = 30
+    rotation_interval: float = Field(30, ge=1)
     idle_scene: str = "PrintDirector Idle"
     overview_scene: str = "Print Farm Overview"
     auto_start_stream: bool = False
     auto_stop_stream: bool = False
-    stream_stop_delay: float = 300
-    near_complete_threshold: float = .95
+    stream_stop_delay: float = Field(300, ge=0)
+    near_complete_threshold: float = Field(.95, ge=0, le=1)
     event_hold_times: dict[str, float] = Field(default_factory=lambda: {
         "print_started": 30,
         "print_completed": 45,
@@ -62,6 +76,37 @@ class DirectorConfig(BaseModel):
         "printer_error": 120,
         "print_paused": 30,
     })
+
+
+class MonitoringConfig(BaseModel):
+    stale_after_seconds: float = Field(30, ge=5)
+    stale_check_interval: float = Field(5, ge=1)
+    history_limit: int = Field(100, ge=10, le=1000)
+
+
+DEFAULT_NOTIFICATION_EVENTS = [
+    "printer_error",
+    "printer_offline",
+    "print_completed",
+    "telemetry_stale",
+    "all_printers_unavailable",
+    "obs_unavailable",
+    "obs_restarted",
+    "stream_recovery_failed",
+]
+
+
+class NotificationsConfig(BaseModel):
+    enabled: bool = False
+    webhook_url: Optional[str] = None
+    timeout: float = Field(5, ge=1, le=30)
+    events: list[str] = Field(default_factory=lambda: list(DEFAULT_NOTIFICATION_EVENTS))
+
+    @model_validator(mode="after")
+    def validate_webhook(self):
+        if self.enabled and not (self.webhook_url or "").strip():
+            raise ValueError("notifications.webhook_url is required when notifications are enabled")
+        return self
 
 
 class PrinterCardConfig(BaseModel):
@@ -130,6 +175,8 @@ class AppConfig(BaseModel):
     printers: list[PrinterConfig]
     obs: OBSConfig = OBSConfig()
     director: DirectorConfig = DirectorConfig()
+    monitoring: MonitoringConfig = MonitoringConfig()
+    notifications: NotificationsConfig = NotificationsConfig()
     overlay: OverlayConfig = OverlayConfig()
     auth: AuthConfig = AuthConfig()
     logging: LoggingConfig = LoggingConfig()

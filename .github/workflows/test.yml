@@ -2,7 +2,7 @@ name: Test PrintDirector
 
 on:
   push:
-    branches: [main, hardening-2026-09-06]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -21,4 +21,7 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python -m compileall -q printdirector tests
       - run: node --check printdirector/overlay/static/overlay.js
+      - run: node --check printdirector/overlay/static/dashboard.js
+      - run: node --check printdirector/overlay/static/admin.js
+      - run: node --check printdirector/overlay/static/operations.js
       - run: python -m pytest -q

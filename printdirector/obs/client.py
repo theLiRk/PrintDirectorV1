@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 from time import monotonic
 
 import obsws_python as obs
@@ -27,6 +28,8 @@ class OBSClient:
         self.streaming = False
         self.current_scene = None
         self.stream_state = self.STREAM_UNKNOWN
+        self.stream_state_changed_at = monotonic()
+        self.last_preflight = None
         self._stream_transition_at = 0.0
         self._last_status_poll_at = 0.0
         self._next_connect_at = 0.0
@@ -34,12 +37,19 @@ class OBSClient:
         self._event_error_reported = False
         self._lock = asyncio.Lock()
         self._stream_lock = asyncio.Lock()
+        self._recovery_lock = asyncio.Lock()
+
+    @property
+    def stream_state_age(self):
+        return max(0.0, monotonic() - self.stream_state_changed_at)
 
     def _set_stream_state(self, state, streaming):
         old_state = self.stream_state
         old_streaming = self.streaming
         self.stream_state = state
         self.streaming = bool(streaming)
+        if old_state != state:
+            self.stream_state_changed_at = monotonic()
         if old_state != state or old_streaming != self.streaming:
             log.info(
                 "OBS stream state %s -> %s (active=%s)",
@@ -206,7 +216,6 @@ class OBSClient:
                 result = await asyncio.to_thread(getattr(self.client, name), *args)
                 return True, result
             except OBSSDKRequestError as exc:
-                # OBS rejected the request, but the websocket itself is still healthy.
                 log.warning(
                     "OBS request %s rejected (code %s): %s",
                     name,
@@ -237,6 +246,111 @@ class OBSClient:
                 log.info("OBS scene status -> %s", scene)
         return self.current_scene
 
+    async def ensure_environment(self):
+        """Optionally enforce the configured OBS scene collection and profile."""
+        changed = False
+        if self.cfg.scene_collection:
+            ok, result = await self._call("get_scene_collection_list")
+            current = getattr(result, "current_scene_collection_name", None) if ok and result is not None else None
+            if current and current != self.cfg.scene_collection:
+                switched, _ = await self._call("set_current_scene_collection", self.cfg.scene_collection)
+                if not switched:
+                    return False
+                changed = True
+                self.current_scene = None
+                log.info("OBS scene collection -> %s", self.cfg.scene_collection)
+        if self.cfg.profile:
+            ok, result = await self._call("get_profile_list")
+            current = getattr(result, "current_profile_name", None) if ok and result is not None else None
+            if current and current != self.cfg.profile:
+                switched, _ = await self._call("set_current_profile", self.cfg.profile)
+                if not switched:
+                    return False
+                changed = True
+                log.info("OBS profile -> %s", self.cfg.profile)
+        if changed:
+            await asyncio.sleep(1)
+        return True
+
+    @staticmethod
+    def _scene_name(item):
+        if isinstance(item, dict):
+            return item.get("sceneName") or item.get("scene_name") or item.get("name")
+        return (
+            getattr(item, "scene_name", None)
+            or getattr(item, "sceneName", None)
+            or getattr(item, "name", None)
+        )
+
+    async def preflight(self, required_scenes=None):
+        required = [scene for scene in (required_scenes or []) if scene]
+        result = {
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "ready": False,
+            "connected": False,
+            "scenes_ok": False,
+            "missing_scenes": list(required),
+            "stream_service_configured": False,
+            "stream_service_type": None,
+            "current_scene": self.current_scene,
+            "scene_collection": None,
+            "scene_collection_ok": not bool(self.cfg.scene_collection),
+            "profile": None,
+            "profile_ok": not bool(self.cfg.profile),
+        }
+
+        ok, scene_result = await self._call("get_scene_list")
+        if not ok or scene_result is None:
+            self.last_preflight = result
+            return result
+
+        scenes = {
+            name
+            for name in (self._scene_name(item) for item in (getattr(scene_result, "scenes", None) or []))
+            if name
+        }
+        missing = [scene for scene in required if scene not in scenes]
+        result["connected"] = True
+        result["missing_scenes"] = missing
+        result["scenes_ok"] = not missing
+        current = getattr(scene_result, "current_program_scene_name", None)
+        if current:
+            self.current_scene = current
+            result["current_scene"] = current
+
+        collection_ok, collection_result = await self._call("get_scene_collection_list")
+        if collection_ok and collection_result is not None:
+            current_collection = getattr(collection_result, "current_scene_collection_name", None)
+            result["scene_collection"] = current_collection
+            result["scene_collection_ok"] = (
+                not self.cfg.scene_collection or current_collection == self.cfg.scene_collection
+            )
+
+        profile_ok, profile_result = await self._call("get_profile_list")
+        if profile_ok and profile_result is not None:
+            current_profile = getattr(profile_result, "current_profile_name", None)
+            result["profile"] = current_profile
+            result["profile_ok"] = not self.cfg.profile or current_profile == self.cfg.profile
+
+        service_ok, service_result = await self._call("get_stream_service_settings")
+        if service_ok and service_result is not None:
+            service_type = (
+                getattr(service_result, "stream_service_type", None)
+                or getattr(service_result, "streamServiceType", None)
+            )
+            result["stream_service_type"] = service_type
+            result["stream_service_configured"] = bool(service_type)
+
+        result["ready"] = bool(
+            result["connected"]
+            and result["scenes_ok"]
+            and result["stream_service_configured"]
+            and result["scene_collection_ok"]
+            and result["profile_ok"]
+        )
+        self.last_preflight = result
+        return result
+
     def _transition_fresh(self):
         return monotonic() - self._stream_transition_at < self.STREAM_TRANSITION_TIMEOUT
 
@@ -253,8 +367,6 @@ class OBSClient:
             self.stream_state in {self.STREAM_STARTING, self.STREAM_STOPPING}
             and self._transition_fresh()
         ):
-            # GetStreamStatus can report inactive while OBS is still transitioning.
-            # Preserve the transition state so automation cannot race a second action.
             return
         else:
             self._set_stream_state(self.STREAM_STOPPED, False)
@@ -297,8 +409,6 @@ class OBSClient:
             self._set_stream_state(self.STREAM_STARTING, False)
             ok, _ = await self._call("start_stream")
             if not ok:
-                # A request failure may mean OBS was already starting/running. Keep a
-                # short transition guard until an event/watchdog poll proves otherwise.
                 if not self.connected:
                     self._set_stream_state(self.STREAM_UNKNOWN, self.streaming)
                 return False
@@ -326,6 +436,39 @@ class OBSClient:
             log.info("OBS stream stop requested")
             return True
 
+    async def recover_stream(self):
+        """Perform one controlled stop/start cycle for a stuck active output."""
+        async with self._recovery_lock:
+            await self.is_streaming(force=True)
+            if self.stream_state not in {self.STREAM_RECONNECTING, self.STREAM_STREAMING}:
+                return False
+            log.warning("Attempting controlled OBS stream recovery")
+            if not await self.stop_stream():
+                return False
+
+            stopped = False
+            for _ in range(8):
+                await asyncio.sleep(1)
+                ok, status = await self._call("get_stream_status")
+                if not ok or status is None:
+                    return False
+                if not bool(getattr(status, "output_active", False)):
+                    self._set_stream_state(self.STREAM_STOPPED, False)
+                    stopped = True
+                    break
+            if not stopped:
+                log.warning("OBS stream did not stop during recovery")
+                return False
+
+            started = await self.start_stream()
+            if not started and self.stream_state not in {
+                self.STREAM_STARTING,
+                self.STREAM_STREAMING,
+                self.STREAM_RECONNECTING,
+            }:
+                return False
+            return True
+
     async def close(self):
         async with self._lock:
             request_client, self.client = self.client, None
@@ -334,6 +477,7 @@ class OBSClient:
             self.connected = False
             self.event_connected = False
             self.current_scene = None
+            self.last_preflight = None
             self._set_stream_state(self.STREAM_UNKNOWN, False)
             self._next_connect_at = 0.0
             self._next_event_connect_at = 0.0

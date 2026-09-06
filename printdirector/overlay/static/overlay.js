@@ -65,11 +65,12 @@ function updateCard(el,p,settings=overlaySettings){
   const progress=clamp(Number(p.progress||0),0,1);
   el.dataset.printerId=p.printer_id;
   el.classList.toggle('offline',!p.online);
-  el.style.borderColor=s.accent_color;
+  el.classList.toggle('stale',Boolean(p.stale));
+  el.style.borderColor=p.stale?'#fbbf24':s.accent_color;
   el.style.fontFamily=s.font_family||'system-ui';
   el.style.color=s.text_color;
   setText(el,'[data-field="name"]',s.label_override||p.printer_name||'Unknown printer');
-  setText(el,'[data-field="state"]',p.state||'offline');
+  setText(el,'[data-field="state"]',p.stale?'stale telemetry':(p.state||'offline'));
   setText(el,'[data-field="file"]',p.filename||'No active file');
   setText(el,'[data-field="percentage"]',`${(progress*100).toFixed(1)}%`);
   setText(el,'[data-field="eta"]',`ETA ${fmt(p.estimated_remaining)}`);
@@ -77,7 +78,7 @@ function updateCard(el,p,settings=overlaySettings){
   setText(el,'[data-field="bed"]',`Bed ${temp(p.bed_temperature,p.bed_target)}`);
   setText(el,'[data-field="layer"]',`Layer ${p.current_layer??'--'} / ${p.total_layers??'--'}`);
   const fill=el.querySelector('[data-field="progress-bar"]');
-  if(fill){fill.style.width=`${(progress*100).toFixed(2)}%`;fill.style.background=s.accent_color;}
+  if(fill){fill.style.width=`${(progress*100).toFixed(2)}%`;fill.style.background=p.stale?'#fbbf24':s.accent_color;}
   setVisible(el,'[data-field="state"]',s.show_state);
   setVisible(el,'[data-field="file"]',s.show_filename);
   setVisible(el,'[data-field="eta"]',s.show_eta);
@@ -104,9 +105,11 @@ function render(data){
   }
   const director=document.querySelector('#director');
   if(director){
-    const state=data.director.obs_stream_state||(data.director.obs_streaming?'streaming':'off');
-    director.textContent=`Auto: ${data.director.auto_enabled?'ON':'OFF'} | OBS: ${data.director.obs_connected?'connected':'offline'} | Scene: ${data.director.current_scene||'--'} | Stream: ${state}`;
+    const d=data.director||{};
+    const state=d.obs_stream_state||(d.obs_streaming?'streaming':'off');
+    director.textContent=`Auto: ${d.auto_enabled?'ON':'OFF'} | OBS: ${d.obs_connected?'connected':'offline'} | Scene: ${d.current_scene||'--'} | Stream: ${state}`;
   }
+  window.dispatchEvent(new CustomEvent('printdirector-update',{detail:data}));
 }
 
 async function fetchSnapshot(){
@@ -140,10 +143,7 @@ function socketUrl(){
 
 function scheduleReconnect(){
   if(reconnectTimer)return;
-  reconnectTimer=setTimeout(()=>{
-    reconnectTimer=null;
-    connectSocket();
-  },reconnectDelay);
+  reconnectTimer=setTimeout(()=>{reconnectTimer=null;connectSocket();},reconnectDelay);
   reconnectDelay=Math.min(reconnectDelay*2,5000);
 }
 
@@ -157,6 +157,4 @@ function connectSocket(){
 }
 
 loadSettings().finally(connectSocket);
-// REST is only a fallback while the live websocket is unavailable. This avoids
-// duplicate DOM work inside OBS Browser Source/CEF during normal operation.
 setInterval(()=>{if(!socket||socket.readyState!==WebSocket.OPEN)fetchSnapshot();},10000);
