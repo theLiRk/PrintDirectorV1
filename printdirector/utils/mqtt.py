@@ -40,6 +40,7 @@ class MQTTPublisher:
         self._latest = {}
         self._last_payload = {}
         self._last_publish_at = {}
+        self._pending_cleanup = set()
         self._heartbeat_task = None
         self._lock = threading.RLock()
 
@@ -123,7 +124,7 @@ class MQTTPublisher:
     def publish_discovery(self, printer_ids=None):
         if not self.config.discovery_enabled or not self.connected:
             return
-        wanted = set(printer_ids or self.printers)
+        wanted = set(self.printers if printer_ids is None else printer_ids)
         for printer_id, printer in self.printers.items():
             if printer_id not in wanted:
                 continue
@@ -134,18 +135,31 @@ class MQTTPublisher:
                     retain=True,
                 )
 
+    def queue_cleanup(self, printer_ids):
+        self._pending_cleanup.update(printer_ids)
+
     def clear_discovery(self, printer_ids=None):
         if not self.config.discovery_enabled or not self.connected:
             return False
-        wanted = set(printer_ids or self.printers)
+        wanted = set(self.printers if printer_ids is None else printer_ids)
         for printer_id in wanted:
             for definition in self.ENTITY_DEFINITIONS:
                 self._publish(self.discovery_topic(printer_id, definition), "", retain=True)
             self._publish(self.state_topic(printer_id), "", retain=True)
+        self._pending_cleanup.difference_update(wanted)
         return True
 
     def _status_payload(self, status):
         return status.model_dump(mode="json")
+
+    @staticmethod
+    def _critical_changed(previous, current):
+        if previous is None:
+            return True
+        return any(
+            previous.get(key) != current.get(key)
+            for key in ("state", "filename", "online", "stale")
+        )
 
     @staticmethod
     def _materially_changed(previous, current):
@@ -181,8 +195,9 @@ class MQTTPublisher:
             last_at = self._last_publish_at.get(printer_id, 0.0)
             now = monotonic()
             changed = self._materially_changed(previous, payload)
+            critical = self._critical_changed(previous, payload)
             due = now - last_at >= self.config.min_publish_interval
-            if not force and (not changed or not due):
+            if not force and (not changed or (not critical and not due)):
                 return False
             if not self._publish(self.state_topic(printer_id), payload, retain=True):
                 return False
@@ -205,6 +220,8 @@ class MQTTPublisher:
         log.info("MQTT broker connected at %s:%s", self.config.host, self.config.port)
         client.subscribe(f"{self.discovery_prefix}/status", qos=self.config.qos)
         self._publish(self.availability_topic, "online", retain=True)
+        if self._pending_cleanup:
+            self.clear_discovery(set(self._pending_cleanup))
         self.publish_discovery()
         self.publish_all_states(force=True)
 
@@ -222,6 +239,8 @@ class MQTTPublisher:
             return
         if payload == "online":
             log.info("Home Assistant MQTT birth received; republishing discovery")
+            if self._pending_cleanup:
+                self.clear_discovery(set(self._pending_cleanup))
             self.publish_discovery()
             self.publish_all_states(force=True)
 
@@ -236,7 +255,8 @@ class MQTTPublisher:
         if self.config.username:
             client.username_pw_set(self.config.username, password or None)
         if self.config.tls_enabled:
-            client.tls_set(cert_reqs=ssl.CERT_REQUIRED)
+            cert_reqs = ssl.CERT_NONE if self.config.tls_insecure else ssl.CERT_REQUIRED
+            client.tls_set(cert_reqs=cert_reqs)
             if self.config.tls_insecure:
                 client.tls_insecure_set(True)
         client.will_set(
