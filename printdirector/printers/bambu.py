@@ -39,10 +39,11 @@ class BambuAdapter(PrinterAdapter):
 
   def _on_connect(self, client, userdata, flags, reason_code, properties=None):
     if reason_code != 0:
-      self._loop.call_soon_threadsafe(
-        self._messages.put_nowait,
-        ConnectionError(f'Bambu MQTT connection refused: {reason_code}'),
-      )
+      if self._loop is not None and self._messages is not None:
+        self._loop.call_soon_threadsafe(
+          self._messages.put_nowait,
+          ConnectionError(f'Bambu MQTT connection refused: {reason_code}'),
+        )
       return
     report_topic = f'device/{self.serial_number}/report'
     client.subscribe(report_topic, qos=0)
@@ -58,7 +59,8 @@ class BambuAdapter(PrinterAdapter):
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
       log.debug('%s sent invalid MQTT data: %s', self.printer_name, exc)
       return
-    self._loop.call_soon_threadsafe(self._messages.put_nowait, payload)
+    if self._loop is not None and self._messages is not None:
+      self._loop.call_soon_threadsafe(self._messages.put_nowait, payload)
 
   def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties=None):
     if reason_code != 0 and self._loop is not None and self._messages is not None:
@@ -67,12 +69,13 @@ class BambuAdapter(PrinterAdapter):
         ConnectionError(f'Bambu MQTT connection lost: {reason_code}'),
       )
 
-  def _connect(self):
+  async def _connect(self):
     host, port = self._mqtt_host_port()
     if not host:
       raise ConnectionError('Bambu printer host is missing')
     if not self.access_code or not self.serial_number:
       raise ConnectionError('Bambu access code and serial number are required')
+
     messages = asyncio.Queue()
     self._messages = messages
     self._loop = asyncio.get_running_loop()
@@ -86,19 +89,31 @@ class BambuAdapter(PrinterAdapter):
     client.on_connect = self._on_connect
     client.on_message = self._on_message
     client.on_disconnect = self._on_disconnect
-    client.connect(host, port, keepalive=60)
-    client.loop_start()
+
+    try:
+      await asyncio.to_thread(client.connect, host, port, 60)
+      client.loop_start()
+    except Exception:
+      self._messages = None
+      self._loop = None
+      raise
     self._mqtt = client
     return client, messages
 
   async def _disconnect(self):
     client, self._mqtt = self._mqtt, None
-    if client is not None:
-      client.loop_stop()
-      client.disconnect()
     self._messages = None
     self._loop = None
     self._latest_payload = {}
+    if client is not None:
+      try:
+        await asyncio.to_thread(client.disconnect)
+      except Exception as exc:
+        log.debug('%s MQTT disconnect failed: %s', self.printer_name, exc)
+      try:
+        await asyncio.to_thread(client.loop_stop)
+      except Exception as exc:
+        log.debug('%s MQTT loop stop failed: %s', self.printer_name, exc)
 
   async def stop(self):
     self._ensure_stop_event().set()
@@ -109,7 +124,7 @@ class BambuAdapter(PrinterAdapter):
     delay = 2
     while not stop.is_set():
       try:
-        client, messages = self._connect()
+        client, messages = await self._connect()
         delay = 2
         while not stop.is_set():
           payload = await asyncio.wait_for(messages.get(), timeout=30)
@@ -189,11 +204,20 @@ class BambuAdapter(PrinterAdapter):
     if progress > 1:
       progress /= 100
     elapsed = self._pick_number(
-      state_payload, ['mc_print_time', 'print_time', 'elapsed_time']
+      state_payload, ['mc_print_time', 'print_time', 'elapsed_time', 'time_elapsed']
     ) or 0
-    remaining = self._pick_number(
-      state_payload, ['mc_remaining_time', 'remaining_time', 'time_remaining']
-    )
+
+    # Bambu LAN MQTT reports mc_remaining_time in minutes. Generic adapter
+    # fields are treated as seconds so integrations using those names retain
+    # their existing semantics.
+    remaining_minutes = self._pick_number(state_payload, ['mc_remaining_time'])
+    if remaining_minutes is not None:
+      remaining = remaining_minutes * 60
+    else:
+      remaining = self._pick_number(
+        state_payload, ['remaining_time', 'time_remaining']
+      )
+
     filename = self._lookup(
       state_payload, ['gcode_file', 'filename', 'file_name', 'job_name']
     )
@@ -207,13 +231,13 @@ class BambuAdapter(PrinterAdapter):
         state_payload, ['nozzle_temper', 'nozzle_temp', 'hotend_temperature']
       ),
       'hotend_target': self._pick_number(
-        state_payload, ['nozzle_target_temper', 'nozzle_target']
+        state_payload, ['nozzle_target_temper', 'nozzle_target', 'target_nozzle_temp']
       ),
       'bed_temperature': self._pick_number(
         state_payload, ['bed_temper', 'bed_temp', 'bed_temperature']
       ),
       'bed_target': self._pick_number(
-        state_payload, ['bed_target_temper', 'bed_target']
+        state_payload, ['bed_target_temper', 'bed_target', 'target_bed_temp']
       ),
       'current_layer': self._pick_int(
         state_payload, ['layer_num', 'current_layer']
