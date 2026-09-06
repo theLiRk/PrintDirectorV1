@@ -19,20 +19,29 @@ printers:
     moonraker_url: http://192.168.1.101:7125
     obs:
       scene: Printer - Fenrir
+
 obs:
   host: 127.0.0.1
   port: 4455
   password_env: OBS_WEBSOCKET_PASSWORD
+  scene_collection: null
+  profile: null
   reconnect_interval: 5
   status_poll_interval: 15
   auto_launch: false
-  # Optional on Windows. If omitted, PrintDirector checks common OBS install paths.
-  # executable: 'C:\Program Files\obs-studio\bin\64bit\obs64.exe'
   executable: null
-  # OBS supports --minimize-to-tray if you prefer unattended startup.
   launch_args: []
   process_check_interval: 5
   launch_cooldown: 30
+  preflight_enabled: true
+  preflight_interval: 30
+  startup_ready_timeout: 45
+  reconnect_stuck_seconds: 90
+  stream_recovery_enabled: true
+  stream_recovery_cooldown: 300
+  restart_obs_on_stream_failure: false
+  restart_obs_cooldown: 600
+
 director:
   enabled: true
   rotation_interval: 30
@@ -47,6 +56,27 @@ director:
     print_completed: 45
     print_near_complete: 60
     printer_error: 120
+    print_paused: 30
+
+monitoring:
+  stale_after_seconds: 30
+  stale_check_interval: 5
+  history_limit: 100
+
+notifications:
+  enabled: false
+  webhook_url: null
+  timeout: 5
+  events:
+    - printer_error
+    - printer_offline
+    - print_completed
+    - telemetry_stale
+    - all_printers_unavailable
+    - obs_unavailable
+    - obs_restarted
+    - stream_recovery_failed
+
 overlay:
   host: 127.0.0.1
   port: 8765

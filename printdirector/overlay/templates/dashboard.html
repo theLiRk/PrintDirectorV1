@@ -2,51 +2,37 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>PrintDirector Dashboard</title>
   <link rel="stylesheet" href="/static/style.css">
-  <link rel="stylesheet" href="/static/dashboard.css?v=2">
+  <link rel="stylesheet" href="/static/dashboard.css?v=3">
 </head>
 <body class="dashboard-page">
   <header class="dashboard-header">
-    <div>
-      <p class="eyebrow">PRINT FARM CONTROL</p>
-      <h1>PrintDirector</h1>
-      <p class="subtitle">Monitor every printer and control what OBS is showing.</p>
-    </div>
-    <div class="dashboard-status">
-      <span class="status-dot"></span>
-      <span id="director">Connecting…</span>
-    </div>
+    <div><p class="eyebrow">PRINT FARM CONTROL</p><h1>PrintDirector</h1><p class="subtitle">Monitor every printer and control what OBS is showing.</p></div>
+    <div class="dashboard-status"><span class="status-dot"></span><span id="director">Connecting…</span></div>
   </header>
 
   <section class="control-panel" aria-label="Director controls">
-    <div class="control-group">
-      <span class="control-label">Director</span>
-      <button data-action="return-auto">Return to auto</button>
-      <button data-show="overview">Show overview</button>
-      <button data-show="idle">Show idle</button>
-    </div>
-    <div class="control-group">
-      <span class="control-label">Stream</span>
-      <button data-stream="start">Start stream</button>
-      <button data-stream="stop">Stop stream</button>
-    </div>
-    <div class="dashboard-links">
-      <a href="/preview">Live preview</a>
-      <a href="/settings">Settings</a>
-    </div>
+    <div class="control-group"><span class="control-label">Director</span><button data-action="return-auto">Return to auto</button><button data-show="overview">Show overview</button><button data-show="idle">Show idle</button></div>
+    <div class="control-group"><span class="control-label">Stream</span><button data-stream="start">Start stream</button><button data-stream="stop">Stop stream</button></div>
+    <div class="dashboard-links"><button id="download-diagnostics" type="button">Diagnostics</button><a href="/preview">Live preview</a><a href="/settings">Settings</a></div>
   </section>
 
-  <section class="section-header">
-    <div>
-      <p class="eyebrow">LIVE STATUS</p>
-      <h2>Printers</h2>
-    </div>
-    <span id="last-refresh">Waiting for updates…</span>
+  <section class="health-grid" aria-label="Operational health">
+    <article class="health-card"><span class="health-label">OBS preflight</span><strong id="health-obs-ready">Checking…</strong><small id="health-obs-detail">Waiting for OBS</small></article>
+    <article class="health-card"><span class="health-label">Stream</span><strong id="health-stream">Unknown</strong><small id="health-stream-detail">No state yet</small></article>
+    <article class="health-card"><span class="health-label">Printers</span><strong id="health-printers">--</strong><small id="health-stale">No telemetry status yet</small></article>
+    <article class="health-card"><span class="health-label">Notifications</span><strong id="health-notifications">--</strong><small>Generic webhook output</small></article>
   </section>
+
+  <section class="section-header"><div><p class="eyebrow">LIVE STATUS</p><h2>Printers</h2></div><span id="last-refresh">Waiting for updates…</span></section>
   <main id="overview" class="grid"></main>
 
-  <script src="/static/overlay.js?v=2"></script>
-  <script src="/static/dashboard.js?v=2"></script>
+  <section class="section-header"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Events</h2></div><span>Newest first</span></section>
+  <section id="event-list" class="event-list"><div class="event-empty">No events recorded yet.</div></section>
+
+  <script src="/static/overlay.js?v=3"></script>
+  <script src="/static/dashboard.js?v=3"></script>
 </body>
 </html>
