@@ -5,7 +5,6 @@ printers:
     moonraker_url: http://192.168.1.100:7125
     obs:
       scene: Printer - Jötunn
-      camera_source: Jötunn Camera
   - id: a1
     name: A1
     type: bambu
@@ -14,18 +13,18 @@ printers:
     serial_number: "ABC123456"
     obs:
       scene: Printer - A1
-      camera_source: A1 Camera
   - id: fenrir
     name: Fenrir
     type: klipper
     moonraker_url: http://192.168.1.101:7125
     obs:
       scene: Printer - Fenrir
-      camera_source: Fenrir Camera
 obs:
   host: 127.0.0.1
   port: 4455
   password_env: OBS_WEBSOCKET_PASSWORD
+  reconnect_interval: 5
+  status_poll_interval: 15
 director:
   enabled: true
   rotation_interval: 30
@@ -63,3 +62,7 @@ auth:
   token_env: PRINTDIRECTOR_TOKEN
 logging:
   level: INFO
+  file: logs/printdirector.log
+  max_bytes: 10485760
+  backup_count: 5
+  console: true

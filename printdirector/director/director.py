@@ -29,7 +29,23 @@ class Director:
     def update(self, status):
         old = self.previous.get(status.printer_id)
         self.statuses[status.printer_id] = status
-        if old:
+        if old is None:
+            log.info(
+                "Printer %s initial state: %s (online=%s)",
+                status.printer_id,
+                status.state.value,
+                status.online,
+            )
+        else:
+            if old.online != status.online or old.state != status.state:
+                log.info(
+                    "Printer %s state %s/%s -> %s/%s",
+                    status.printer_id,
+                    old.state.value,
+                    "online" if old.online else "offline",
+                    status.state.value,
+                    "online" if status.online else "offline",
+                )
             self._events(old, status)
         self.previous[status.printer_id] = status.model_copy(deep=True)
 
@@ -72,16 +88,24 @@ class Director:
         if hold and (not self.override or event.priority >= self.override.priority):
             self.override = event
             self.override_until = monotonic() + hold
+            log.info(
+                "Director event %s for %s; scene override for %.0fs",
+                event.type.value,
+                event.printer_id,
+                hold,
+            )
 
     async def command_scene(self, scene, printer=None):
         self.manual_scene = scene
         self.auto_enabled = False
         self.current_printer = printer
+        log.info("Director manual scene: %s", scene)
         await self.obs.set_scene(scene)
 
     def return_auto(self):
         self.manual_scene = None
         self.auto_enabled = True
+        log.info("Director returned to automatic mode")
 
     def active_ids(self):
         return sorted(
@@ -164,6 +188,7 @@ class Director:
             "current_printer": self.current_printer,
             "current_event": self.override.type.value if self.override else None,
             "obs_connected": self.obs.connected,
+            "obs_events_connected": getattr(self.obs, "event_connected", False),
             "obs_streaming": self.obs.streaming,
             "obs_stream_state": getattr(self.obs, "stream_state", None),
             "current_scene": self.obs.current_scene,

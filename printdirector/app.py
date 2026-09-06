@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from pathlib import Path
 
 from .config.loader import obs_password
 from .director import Director
 from .obs import OBSClient
 from .printers import PrinterManager
+
+log = logging.getLogger(__name__)
 
 
 class Runtime:
@@ -27,6 +30,24 @@ class Runtime:
     def on_status(self, status):
         self.director.update(status)
 
+    def is_running(self):
+        return bool(self.tasks) and all(not task.done() for task in self.tasks)
+
+    async def obs_watchdog(self):
+        interval = max(
+            1.0,
+            min(
+                max(self.config.obs.reconnect_interval, 1.0),
+                self.config.obs.status_poll_interval,
+            ),
+        )
+        while True:
+            try:
+                await self.obs.is_streaming()
+            except Exception:
+                log.exception("OBS watchdog failed")
+            await asyncio.sleep(interval)
+
     async def broadcaster(self):
         while True:
             if self.hub:
@@ -46,7 +67,9 @@ class Runtime:
         self.tasks = [
             asyncio.create_task(self.director.run(), name="director"),
             asyncio.create_task(self.broadcaster(), name="broadcaster"),
+            asyncio.create_task(self.obs_watchdog(), name="obs-watchdog"),
         ]
+        log.info("PrintDirector runtime started")
 
     async def _stop_components(self):
         cleanup = asyncio.gather(
@@ -64,11 +87,13 @@ class Runtime:
     async def reconfigure(self, config):
         """Apply runtime-safe configuration changes without leaving stale components.
 
-        Uvicorn's listening host/port cannot be rebound from inside the running app;
-        those values are persisted and take effect after a process restart. Printer,
-        director, OBS and auth settings are rebuilt immediately.
+        Uvicorn's listening host/port and the process logging handlers cannot be
+        rebound safely from inside the running request. Those values are persisted
+        and reported as requiring a restart. Printer, director, OBS and auth settings
+        are rebuilt immediately.
         """
         async with self._reconfigure_lock:
+            log.info("Reconfiguring PrintDirector runtime")
             await self._stop_components()
             self.config = config
             self._build_components(config)
@@ -77,6 +102,7 @@ class Runtime:
     async def stop(self):
         async with self._reconfigure_lock:
             await self._stop_components()
+            log.info("PrintDirector runtime stopped")
 
     async def _stop_task(self, task):
         if not task.done():

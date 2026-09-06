@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 .env
 config.yaml
+config.local.json
+*.local.json
+overlay-settings.json
+logs/
+*.log
 .pytest_cache/
 .coverage
 .DS_Store
