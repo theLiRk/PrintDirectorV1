@@ -10,6 +10,7 @@ from .models import EventType
 from .obs import OBSClient, OBSProcessManager
 from .printers import PrinterManager
 from .utils.events import EventHistory
+from .utils.mqtt import MQTTPublisher
 from .utils.notifications import WebhookNotifier
 
 log = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class Runtime:
             event_sink=self.on_director_event,
         )
         self.notifier = WebhookNotifier(config.notifications)
+        self.mqtt = MQTTPublisher(config.mqtt, config.printers)
         self.history.resize(config.monitoring.history_limit)
         self._last_preflight_at = 0.0
         self._last_stream_recovery_at = 0.0
@@ -98,6 +100,7 @@ class Runtime:
             )
         self._seen_printers.add(status.printer_id)
         self.director.update(status)
+        self.mqtt.publish_status(status)
         self._check_all_printers_unavailable()
 
     def _check_all_printers_unavailable(self):
@@ -139,6 +142,8 @@ class Runtime:
             "online_printers": sum(status.online and not getattr(status, "stale", False) for status in statuses.values()),
             "stale_printers": stale,
             "notifications_enabled": self.config.notifications.enabled,
+            "mqtt_enabled": self.config.mqtt.enabled,
+            "mqtt_connected": self.mqtt.connected,
         }
 
     async def stale_watchdog(self):
@@ -159,6 +164,7 @@ class Runtime:
                     stale_status = status.model_copy(update={"stale": True})
                     adapter.status = stale_status
                     self.director.update(stale_status)
+                    self.mqtt.publish_status(stale_status, force=True)
                     self.record_event(
                         "telemetry_stale",
                         f"{status.printer_name}: no telemetry for {age:.0f}s",
@@ -316,6 +322,9 @@ class Runtime:
     async def start(self):
         if not self.demo and self.config.obs.auto_launch:
             await self.obs_process.ensure_running()
+        await self.mqtt.start()
+        for status in self.manager.statuses().values():
+            self.mqtt.publish_status(status, force=True)
         await self.manager.start()
         self.tasks = [
             asyncio.create_task(self.director.run(), name="director"),
@@ -329,6 +338,7 @@ class Runtime:
         cleanup = asyncio.gather(
             self.director.stop(),
             self.manager.stop(),
+            self.mqtt.stop(),
             *(self._stop_task(task) for task in self.tasks),
         )
         try:
@@ -338,9 +348,29 @@ class Runtime:
         self.tasks.clear()
         await self.obs.close()
 
+    def _clear_obsolete_mqtt_discovery(self, new_config):
+        old_mqtt = self.config.mqtt
+        new_mqtt = new_config.mqtt
+        if not old_mqtt.enabled or not old_mqtt.discovery_enabled:
+            return
+        old_ids = set(self.mqtt.printers)
+        new_ids = {printer.id for printer in new_config.printers}
+        discovery_context_changed = (
+            not new_mqtt.enabled
+            or not new_mqtt.discovery_enabled
+            or old_mqtt.host != new_mqtt.host
+            or old_mqtt.port != new_mqtt.port
+            or old_mqtt.topic_prefix != new_mqtt.topic_prefix
+            or old_mqtt.discovery_prefix != new_mqtt.discovery_prefix
+        )
+        obsolete = old_ids if discovery_context_changed else old_ids - new_ids
+        if obsolete:
+            self.mqtt.clear_discovery(obsolete)
+
     async def reconfigure(self, config):
         async with self._reconfigure_lock:
             log.info("Reconfiguring PrintDirector runtime")
+            self._clear_obsolete_mqtt_discovery(config)
             await self._stop_components()
             self.config = config
             self._build_components(config)

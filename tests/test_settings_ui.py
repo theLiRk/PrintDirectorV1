@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "printdirector" / "overlay" / "templates" / "settings.html"
 PRINTER_JS = ROOT / "printdirector" / "overlay" / "static" / "printer-editor.js"
+GLOBAL_JS = ROOT / "printdirector" / "overlay" / "static" / "settings-global.js"
 
 
 class SettingsParser(HTMLParser):
@@ -68,3 +69,16 @@ def test_save_printer_persists_connection_and_overlay_behind_one_action():
     assert "'/api/system-config'" in save_source
     assert "'/api/settings'" in save_source
     assert "printer_overrides" in save_source
+
+
+def test_connections_workspace_exposes_home_assistant_mqtt_configuration():
+    source = GLOBAL_JS.read_text(encoding="utf-8")
+    assert "Home Assistant / MQTT" in source
+    assert "mqtt-enabled" in source
+    assert "mqtt-host" in source
+    assert "mqtt-discovery-enabled" in source
+    assert "mqtt-discovery-prefix" in source
+    assert "PRINTDIRECTOR_MQTT_PASSWORD" in source
+    save_start = source.index("async function saveConnections()")
+    save_end = source.index("async function refreshPrinterStatuses", save_start)
+    assert "mqtt:" in source[save_start:save_end]
