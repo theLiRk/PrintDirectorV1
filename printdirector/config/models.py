@@ -109,6 +109,42 @@ class NotificationsConfig(BaseModel):
         return self
 
 
+class MQTTConfig(BaseModel):
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = Field(1883, ge=1, le=65535)
+    username: Optional[str] = None
+    password: Optional[str] = None
+    password_env: str = "PRINTDIRECTOR_MQTT_PASSWORD"
+    client_id: str = "printdirector"
+    topic_prefix: str = "printdirector"
+    discovery_enabled: bool = True
+    discovery_prefix: str = "homeassistant"
+    qos: int = Field(0, ge=0, le=2)
+    retain: bool = True
+    keepalive: int = Field(60, ge=5, le=3600)
+    heartbeat_interval: float = Field(30, ge=5)
+    min_publish_interval: float = Field(2, ge=0)
+    tls_enabled: bool = False
+    tls_insecure: bool = False
+
+    @model_validator(mode="after")
+    def validate_mqtt(self):
+        self.host = self.host.strip()
+        self.topic_prefix = self.topic_prefix.strip().strip("/")
+        self.discovery_prefix = self.discovery_prefix.strip().strip("/")
+        self.client_id = self.client_id.strip()
+        if self.enabled and not self.host:
+            raise ValueError("mqtt.host is required when MQTT is enabled")
+        if not self.topic_prefix or any(char in self.topic_prefix for char in "#+"):
+            raise ValueError("mqtt.topic_prefix must be a normal MQTT topic without wildcards")
+        if not self.discovery_prefix or any(char in self.discovery_prefix for char in "#+"):
+            raise ValueError("mqtt.discovery_prefix must be a normal MQTT topic without wildcards")
+        if not self.client_id:
+            raise ValueError("mqtt.client_id must not be empty")
+        return self
+
+
 class PrinterCardConfig(BaseModel):
     accent_color: Optional[str] = None
     text_color: Optional[str] = None
@@ -177,6 +213,7 @@ class AppConfig(BaseModel):
     director: DirectorConfig = DirectorConfig()
     monitoring: MonitoringConfig = MonitoringConfig()
     notifications: NotificationsConfig = NotificationsConfig()
+    mqtt: MQTTConfig = MQTTConfig()
     overlay: OverlayConfig = OverlayConfig()
     auth: AuthConfig = AuthConfig()
     logging: LoggingConfig = LoggingConfig()
