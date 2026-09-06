@@ -125,6 +125,33 @@ def test_auto_stream_waits_for_scene_switch_and_confirmation():
     asyncio.run(run())
 
 
+def test_auto_stream_waits_when_startup_watchdog_already_restored_scene():
+    async def run():
+        d = make(auto_start_stream=True)
+        # Reproduce the startup race: the OBS watchdog has already restored the
+        # intended scene before Director gets its first stream-control tick.
+        d.obs.current_scene = "A"
+        d.update(P("a", PrinterState.PRINTING))
+
+        await d.tick(10)
+        assert not d.obs.streaming
+        assert ("confirm_scene", "A") in d.obs.events
+        assert not any(event[0] == "start_stream" for event in d.obs.events)
+
+        # Even another tick inside the settle interval must remain blocked.
+        await d.tick(10.5)
+        assert not d.obs.streaming
+
+        # Only after a full second of confirmed stability may streaming start.
+        await d.tick(11)
+        assert d.obs.streaming
+        confirm_index = d.obs.events.index(("confirm_scene", "A"))
+        start_index = d.obs.events.index(("start_stream", "A"))
+        assert confirm_index < start_index
+
+    asyncio.run(run())
+
+
 def test_stream_start_is_blocked_if_obs_does_not_confirm_desired_scene():
     async def run():
         d = make(auto_start_stream=True)

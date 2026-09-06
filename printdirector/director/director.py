@@ -8,6 +8,8 @@ log = logging.getLogger(__name__)
 
 
 class Director:
+    STREAM_SCENE_SETTLE_SECONDS = 1.0
+
     def __init__(self, config, printer_configs, obs, event_sink=None):
         self.cfg = config
         self.obs = obs
@@ -26,6 +28,8 @@ class Director:
         self.inactive_since = None
         self._near = set()
         self._stop = asyncio.Event()
+        self._stream_scene_candidate = None
+        self._stream_scene_candidate_since = 0.0
 
     def update(self, status):
         old = self.previous.get(status.printer_id)
@@ -191,9 +195,6 @@ class Director:
                     scene_changed = await self._show(active[self.index])
                     self.last_switch = now
 
-        # If this tick changed the Program scene, leave one Director cycle for
-        # OBS to settle before starting the stream. On the following tick the
-        # scene is also queried back from OBS before start_stream is allowed.
         await self._stream(active, now, defer_start=scene_changed)
 
     async def _show(self, printer_id):
@@ -206,17 +207,28 @@ class Director:
         ok = await self.obs.set_scene(scene)
         return previous_scene != scene and ok is not False
 
+    def _reset_stream_scene_candidate(self):
+        self._stream_scene_candidate = None
+        self._stream_scene_candidate_since = 0.0
+
     async def _stream(self, active, now, defer_start=False):
         if not self.cfg.auto_start_stream and not self.cfg.auto_stop_stream:
+            self._reset_stream_scene_candidate()
             return
 
         streaming = await self.obs.is_streaming()
         if active and self.cfg.auto_start_stream and not streaming:
+            desired = self.desired_scene(now)
+
             if defer_start:
-                log.info("OBS stream start deferred until the new Program scene settles")
+                self._stream_scene_candidate = desired
+                self._stream_scene_candidate_since = now
+                log.info(
+                    "OBS stream start deferred for %.1fs while Program scene settles",
+                    self.STREAM_SCENE_SETTLE_SECONDS,
+                )
                 return
 
-            desired = self.desired_scene(now)
             if desired:
                 get_current_scene = getattr(self.obs, "get_current_scene", None)
                 if callable(get_current_scene):
@@ -224,6 +236,7 @@ class Director:
                 else:
                     current = self.obs.current_scene
                 if current != desired:
+                    self._reset_stream_scene_candidate()
                     log.warning(
                         "OBS stream start deferred until Program scene is confirmed as %s (current=%s)",
                         desired,
@@ -231,7 +244,31 @@ class Director:
                     )
                     return
 
+                # A scene may have been changed by the startup/reconnect watchdog
+                # rather than by Director.tick(). Treat the first successful
+                # confirmation as the beginning of the settle period so every
+                # automatic stream start gets the same protection.
+                if self._stream_scene_candidate != desired:
+                    self._stream_scene_candidate = desired
+                    self._stream_scene_candidate_since = now
+                    log.info(
+                        "OBS Program scene %s confirmed; waiting %.1fs before stream start",
+                        desired,
+                        self.STREAM_SCENE_SETTLE_SECONDS,
+                    )
+                    return
+
+                stable_for = max(0.0, now - self._stream_scene_candidate_since)
+                if stable_for < self.STREAM_SCENE_SETTLE_SECONDS:
+                    log.info(
+                        "OBS stream start deferred; Program scene %s has been stable for %.1fs",
+                        desired,
+                        stable_for,
+                    )
+                    return
+
             await self.obs.start_stream()
+            self._reset_stream_scene_candidate()
         elif (
             not active
             and self.cfg.auto_stop_stream
@@ -239,8 +276,11 @@ class Director:
             and self.inactive_since is not None
             and now - self.inactive_since >= self.cfg.stream_stop_delay
         ):
+            self._reset_stream_scene_candidate()
             await self.obs.stop_stream()
             self.inactive_since = now
+        elif streaming or not active:
+            self._reset_stream_scene_candidate()
 
     async def run(self):
         while not self._stop.is_set():
