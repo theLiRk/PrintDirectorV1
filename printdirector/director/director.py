@@ -15,7 +15,9 @@ class Director:
         self.obs = obs
         self.event_sink = event_sink
         self.scenes = {p.id: p.obs.scene for p in printer_configs}
-        self.stream_enabled_ids = {p.id for p in printer_configs if p.stream_enabled}
+        self.stream_enabled_ids = {
+            p.id for p in printer_configs if getattr(p, "stream_enabled", True)
+        }
         self.statuses = {}
         self.previous = {}
         self.auto_enabled = config.enabled
