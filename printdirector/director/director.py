@@ -15,6 +15,7 @@ class Director:
         self.obs = obs
         self.event_sink = event_sink
         self.scenes = {p.id: p.obs.scene for p in printer_configs}
+        self.stream_enabled_ids = {p.id for p in printer_configs if p.stream_enabled}
         self.statuses = {}
         self.previous = {}
         self.auto_enabled = config.enabled
@@ -101,6 +102,13 @@ class Director:
                 self.event_sink(event)
             except Exception:
                 log.exception("Director event sink failed")
+
+        # Excluding a printer from automatic streaming must not suppress its
+        # telemetry/events. It only prevents Director from forcing that
+        # printer's scene as an automatic event override.
+        if event.printer_id not in self.stream_enabled_ids:
+            return
+
         hold = self.cfg.event_hold_times.get(event.type.value, 0)
         if hold and (not self.override or event.priority >= self.override.priority):
             self.override = event
@@ -128,7 +136,8 @@ class Director:
         return sorted(
             printer_id
             for printer_id, status in self.statuses.items()
-            if status.online
+            if printer_id in self.stream_enabled_ids
+            and status.online
             and not getattr(status, "stale", False)
             and status.state in (PrinterState.PRINTING, PrinterState.PAUSED)
         )
