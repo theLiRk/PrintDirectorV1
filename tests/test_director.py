@@ -47,13 +47,13 @@ P = lambda i, s, progress=0: PrinterStatus(
 )
 
 
-def make(**kw):
+def make(excluded=(), event_sink=None, **kw):
     cfg = DirectorConfig(rotation_interval=1, **kw)
     pcs = [
-        SimpleNamespace(id="a", obs=SimpleNamespace(scene="A")),
-        SimpleNamespace(id="b", obs=SimpleNamespace(scene="B")),
+        SimpleNamespace(id="a", stream_enabled="a" not in excluded, obs=SimpleNamespace(scene="A")),
+        SimpleNamespace(id="b", stream_enabled="b" not in excluded, obs=SimpleNamespace(scene="B")),
     ]
-    return Director(cfg, pcs, OBS())
+    return Director(cfg, pcs, OBS(), event_sink=event_sink)
 
 
 def test_rotation_and_removal():
@@ -188,3 +188,60 @@ def test_printer_error_beats_near_complete_event():
     d._events(old, new)
     assert d.override is not None
     assert d.override.type == EventType.PRINTER_ERROR
+
+
+def test_excluded_printer_is_not_automatic_stream_activity():
+    async def run():
+        d = make(excluded={"b"}, auto_start_stream=True)
+        d.update(P("b", PrinterState.PRINTING))
+
+        assert d.active_ids() == []
+        assert d.desired_scene(1) == d.cfg.idle_scene
+        await d.tick(1)
+        await d.tick(2)
+
+        assert d.obs.current_scene == d.cfg.idle_scene
+        assert not d.obs.streaming
+        assert not any(event[0] == "start_stream" for event in d.obs.events)
+
+    asyncio.run(run())
+
+
+def test_excluded_printer_does_not_enter_rotation_with_included_printer():
+    async def run():
+        d = make(excluded={"b"})
+        d.update(P("a", PrinterState.PRINTING))
+        d.update(P("b", PrinterState.PRINTING))
+
+        assert d.active_ids() == ["a"]
+        await d.tick(10)
+        assert d.obs.current_scene == "A"
+        await d.tick(12)
+        assert d.obs.current_scene == "A"
+
+    asyncio.run(run())
+
+
+def test_excluded_printer_events_are_reported_without_scene_override():
+    received = []
+    d = make(excluded={"b"}, event_sink=received.append)
+    old = P("b", PrinterState.IDLE, 0)
+    new = P("b", PrinterState.PRINTING, 0.1)
+
+    d._events(old, new)
+
+    assert received
+    assert received[-1].printer_id == "b"
+    assert received[-1].type == EventType.PRINT_STARTED
+    assert d.override is None
+
+
+def test_excluded_printer_can_still_be_selected_manually():
+    async def run():
+        d = make(excluded={"b"})
+        d.update(P("b", PrinterState.PRINTING))
+        await d.command_scene("B", "b")
+        await d.tick(10)
+        assert d.obs.current_scene == "B"
+
+    asyncio.run(run())
