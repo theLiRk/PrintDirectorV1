@@ -26,4 +26,5 @@ jobs:
       - run: node --check printdirector/overlay/static/operations.js
       - run: node --check printdirector/overlay/static/settings-global.js
       - run: node --check printdirector/overlay/static/printer-editor.js
+      - run: node --check printdirector/overlay/static/stream-exclusion.js
       - run: python -m pytest -q
