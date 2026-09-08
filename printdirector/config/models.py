@@ -15,6 +15,7 @@ class PrinterConfig(BaseModel):
     bambu_url: Optional[str] = None
     access_code: Optional[str] = None
     serial_number: Optional[str] = None
+    stream_enabled: bool = True
     obs: PrinterOBSConfig
 
     @model_validator(mode="after")
