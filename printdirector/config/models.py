@@ -34,6 +34,7 @@ class PrinterConfig(BaseModel):
 
 
 class OBSConfig(BaseModel):
+    enabled: bool = True
     host: str = "127.0.0.1"
     port: int = 4455
     password_env: str = "OBS_WEBSOCKET_PASSWORD"

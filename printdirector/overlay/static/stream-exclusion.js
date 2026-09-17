@@ -48,4 +48,8 @@
 
   ensureStreamToggle();
   syncStreamToggle();
+
+  const obsModeScript = document.createElement('script');
+  obsModeScript.src = '/static/obs-mode.js?v=1';
+  document.body.appendChild(obsModeScript);
 })();
