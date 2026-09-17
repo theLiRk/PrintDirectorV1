@@ -34,9 +34,17 @@ class FakeOBS:
             self.connected = True
         return self.streaming
 
+    async def preflight(self, required_scenes=None):
+        return {
+            "ready": True,
+            "connected": self.connected,
+            "disabled": not self.connected,
+            "missing_scenes": [],
+        }
+
 
 class FakeRuntime:
-    def __init__(self, tmp_path, running=True, connect_on_poll=True):
+    def __init__(self, tmp_path, running=True, connect_on_poll=True, obs_enabled=True, mqtt_connected=True):
         self.config = AppConfig.model_validate(
             {
                 "printers": [
@@ -46,13 +54,16 @@ class FakeRuntime:
                         "moonraker_url": "http://x",
                         "obs": {"scene": "A"},
                     }
-                ]
+                ],
+                "obs": {"enabled": obs_enabled},
+                "mqtt": {"enabled": not obs_enabled, "host": "mqtt.local"},
             }
         )
         self.config_path = tmp_path / "config.yaml"
         self.demo = False
         self._running = running
         self.obs = FakeOBS(connect_on_poll=connect_on_poll)
+        self.mqtt = SimpleNamespace(connected=mqtt_connected)
         self.manager = SimpleNamespace(
             statuses=lambda: {"a": SimpleNamespace(online=True)},
             adapters={"a": object()},
@@ -100,12 +111,29 @@ def test_health_is_liveness_and_ready_performs_obs_watchdog(tmp_path):
     assert ready.json()["status"] == "ready"
     assert runtime.obs.polls == [True]
     assert ready.json()["obs_connected"] is True
+    assert ready.json()["obs_enabled"] is True
 
 
 def test_ready_returns_503_when_obs_cannot_connect(tmp_path):
     runtime = FakeRuntime(tmp_path, connect_on_poll=False)
     client = TestClient(create_app(runtime))
 
+    ready = client.get("/api/health/ready")
+    assert ready.status_code == 503
+    assert ready.json()["status"] == "degraded"
+
+
+def test_mqtt_only_ready_skips_obs_and_requires_mqtt(tmp_path):
+    runtime = FakeRuntime(tmp_path, obs_enabled=False, mqtt_connected=True)
+    client = TestClient(create_app(runtime))
+
+    ready = client.get("/api/health/ready")
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+    assert ready.json()["obs_enabled"] is False
+    assert runtime.obs.polls == []
+
+    runtime.mqtt.connected = False
     ready = client.get("/api/health/ready")
     assert ready.status_code == 503
     assert ready.json()["status"] == "degraded"
