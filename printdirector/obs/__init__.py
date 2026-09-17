@@ -1,4 +1,3 @@
-from .client import OBSClient
-from .process import OBSProcessManager
+from .optional import OBSClient, OBSProcessManager
 
 __all__ = ["OBSClient", "OBSProcessManager"]
