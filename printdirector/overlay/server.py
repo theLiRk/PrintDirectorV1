@@ -149,7 +149,12 @@ def create_app(runtime):
                 "online_printers": sum(bool(getattr(item, "online", False)) for item in statuses.values()),
                 "stale_printers": [],
             }
+        operational["obs_enabled"] = bool(getattr(runtime.config.obs, "enabled", True))
         return {"status": status, **operational}
+
+    def require_obs_enabled():
+        if not getattr(runtime.config.obs, "enabled", True):
+            raise HTTPException(409, "OBS integration is disabled; PrintDirector is running in MQTT-only mode")
 
     @app.middleware("http")
     async def auth_middleware(request: Request, call_next):
@@ -170,14 +175,17 @@ def create_app(runtime):
 
     @app.get("/api/health/ready")
     async def ready():
-        if not runtime.demo:
+        obs_enabled = bool(getattr(runtime.config.obs, "enabled", True))
+        if not runtime.demo and obs_enabled:
             await runtime.obs.is_streaming(force=True)
             preflight_runner = getattr(runtime, "_run_preflight", None)
             preflight = await preflight_runner(force=True) if preflight_runner else None
+        elif not obs_enabled:
+            preflight = await runtime.obs.preflight([])
         else:
             preflight = None
         preflight_supported = hasattr(runtime, "_run_preflight")
-        obs_ready = runtime.demo or (
+        obs_ready = runtime.demo or not obs_enabled or (
             runtime.obs.connected
             and (
                 not runtime.config.obs.preflight_enabled
@@ -185,7 +193,12 @@ def create_app(runtime):
                 or bool(preflight and preflight.get("ready"))
             )
         )
-        is_ready = runtime.is_running() and obs_ready
+        mqtt_only_ready = (
+            obs_enabled
+            or not runtime.config.mqtt.enabled
+            or bool(getattr(runtime.mqtt, "connected", False))
+        )
+        is_ready = runtime.is_running() and obs_ready and mqtt_only_ready
         payload = health_payload("ready" if is_ready else "degraded")
         return JSONResponse(status_code=200 if is_ready else 503, content=payload)
 
@@ -210,6 +223,8 @@ def create_app(runtime):
         check_auth(runtime.config, request)
         if runtime.demo:
             return {"ready": True, "demo": True, "missing_scenes": []}
+        if not getattr(runtime.config.obs, "enabled", True):
+            return await runtime.obs.preflight([])
         return await runtime._run_preflight(force=True)
 
     @app.post("/api/notifications/test")
@@ -411,18 +426,21 @@ def create_app(runtime):
     @app.post("/api/director/auto/{enabled}")
     def auto(enabled: bool, request: Request):
         check_auth(runtime.config, request)
+        require_obs_enabled()
         runtime.director.auto_enabled = enabled
         return runtime.director.public_status()
 
     @app.post("/api/director/return-auto")
     def return_auto(request: Request):
         check_auth(runtime.config, request)
+        require_obs_enabled()
         runtime.director.return_auto()
         return runtime.director.public_status()
 
     @app.post("/api/director/show/{target}")
     async def show(target, request: Request):
         check_auth(runtime.config, request)
+        require_obs_enabled()
         if target == "overview":
             scene = runtime.config.director.overview_scene
             printer_id = None
@@ -440,6 +458,7 @@ def create_app(runtime):
     @app.post("/api/stream/{action}")
     async def stream(action, request: Request):
         check_auth(runtime.config, request)
+        require_obs_enabled()
         if action == "start":
             await runtime.obs.start_stream()
         elif action == "stop":
