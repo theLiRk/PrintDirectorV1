@@ -21,6 +21,9 @@ printers:
       scene: Printer - Fenrir
 
 obs:
+  # Set false for MQTT-only operation. PrintDirector will not connect to,
+  # launch, control, preflight, or recover OBS while disabled.
+  enabled: true
   host: 127.0.0.1
   port: 4455
   password_env: OBS_WEBSOCKET_PASSWORD
